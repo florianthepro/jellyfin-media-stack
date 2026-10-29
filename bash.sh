@@ -6,64 +6,85 @@ APP_NAME="jellyfin-media-stack"
 INSTALL_DIR="${INSTALL_DIR:-/opt/${APP_NAME}}"
 MEDIA_DIR="${MEDIA_DIR:-/srv/media}"
 TIMEZONE="${TIMEZONE:-Europe/Berlin}"
-MODE="${MODE:-w}"
-ADMIN_USER="${ADMIN_USER:-admin}"
-QBIT_USER="${QBIT_USER:-admin}"
-QBIT_PORT="${QBIT_PORT:-8080}"
-QBIT_TORRENT_PORT="${QBIT_TORRENT_PORT:-6881}"
-TS_HOST="${TS_HOST:-jellystack}"
-LOG_FILE="/var/log/${APP_NAME}.log"
+AUTO_MODE=0
+
+if [[ "${1:-}" == "--auto" ]]; then
+  AUTO_MODE=1
+fi
 
 info(){ printf '\033[1;34m[i]\033[0m %s\n' "$1"; }
 ok(){ printf '\033[1;32m[✓]\033[0m %s\n' "$1"; }
 warn(){ printf '\033[1;33m[!]\033[0m %s\n' "$1" >&2; }
 fail(){ printf '\033[1;31m[✗]\033[0m %s\n' "$1" >&2; exit 1; }
 
-random_string(){
+random_password(){
   LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 25
 }
 
-read_choice(){
-  local prompt="$1" default="$2"
-  local answer
-  if [[ -t 0 ]]; then
-    printf '%s [%s]: ' "$prompt" "$default" >/dev/tty
-    IFS= read -r answer </dev/tty || answer="$default"
-    printf '%s' "${answer:-$default}"
-  else
-    printf '%s' "$default"
+ask_yes(){
+  local prompt="$1" default="${2:-n}"
+  local answer=""
+  if [[ "$AUTO_MODE" -eq 1 ]]; then
+    return 0
   fi
-}
-
-ensure_root(){
-  [[ ${EUID:-$(id -u)} -eq 0 ]] || fail "Bitte mit sudo ausführen: curl -fsSL ... | sudo bash"
-}
-
-detect_os(){
-  [[ -r /etc/os-release ]] || fail "/etc/os-release fehlt. Nur Debian/Ubuntu unterstützt."
-  . /etc/os-release
-  case "${ID:-}" in
-    debian|ubuntu) ;;
-    *) fail "Betriebssystem ${ID:-unbekannt} wird nicht unterstützt. Nutze Debian oder Ubuntu." ;;
+  printf '%s [%s]: ' "$prompt" "$default" >/dev/tty
+  IFS= read -r answer </dev/tty || answer="$default"
+  answer="${answer:-$default}"
+  case "${answer,,}" in
+    y|yes|j|ja) return 0 ;;
+    n|no|nein) return 1 ;;
+    *) return 1 ;;
   esac
 }
 
-ensure_docker(){
+require_root(){
+  [[ ${EUID:-$(id -u)} -eq 0 ]] || fail "Bitte mit sudo ausführen: curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/bash.sh | sudo bash"
+}
+
+detect_os(){
+  [[ -r /etc/os-release ]] || fail "/etc/os-release fehlt. Debian/Ubuntu wird benötigt."
+  . /etc/os-release
+  case "${ID:-}" in
+    debian|ubuntu) ;;
+    *) fail "Betriebssystem ${ID:-unbekannt} nicht unterstützt. Nutze Debian oder Ubuntu." ;;
+  esac
+}
+
+check_existing_install(){
+  if [[ -f "$INSTALL_DIR/compose.yaml" ]] || [[ -f "$INSTALL_DIR/.env" ]]; then
+    if [[ "$AUTO_MODE" -eq 1 ]]; then
+      info "Vorhandene Installation erkannt. Überschreibe sie automatisch."
+      rm -rf "$INSTALL_DIR"
+      return 0
+    fi
+
+    if ask_yes "Vorhandene Installation erkannt. Neu aufsetzen?" n; then
+      rm -rf "$INSTALL_DIR"
+      return 0
+    fi
+    info "Bestehende Installation bleibt unverändert."
+    exit 0
+  fi
+}
+
+install_docker(){
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-    ok "Docker gefunden"
+    ok "Docker/Compose vorhanden"
     return 0
   fi
 
-  if [[ ! -t 0 ]]; then
-    fail "Docker fehlt und kann nicht automatisch installiert werden, weil kein interaktives Terminal vorhanden ist."
+  if [[ "$AUTO_MODE" -eq 1 ]]; then
+    info "Docker wird installiert..."
+  else
+    warn "Docker fehlt. Installation wird gestartet..."
   fi
 
-  warn "Docker wird installiert..."
   apt-get update -qq
   apt-get install -y ca-certificates curl gnupg lsb-release
   install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL "https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg" | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") $(. /etc/os-release; echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+  . /etc/os-release
+  curl -fsSL "https://download.docker.com/linux/${ID}/gpg" | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable" > /etc/apt/sources.list.d/docker.list
   apt-get update -qq
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   systemctl enable --now docker
@@ -71,99 +92,77 @@ ensure_docker(){
   ok "Docker installiert"
 }
 
-choose_mode(){
-  case "${MODE,,}" in
-    w|wizard|interactive) MODE="w" ;;
-    a|auto|automatic) MODE="a" ;;
-    m|manual) MODE="m" ;;
-    *) MODE="w" ;;
-  esac
-
-  if [[ "$MODE" == "w" && -t 0 ]]; then
-    local answer
-    printf 'Setup-Modus [w=Wizard, a=automatisch, m=manuell]: ' >/dev/tty
-    IFS= read -r answer </dev/tty || answer="w"
-    case "${answer,,}" in
-      a|auto|automatic) MODE="a" ;;
-      m|manual) MODE="m" ;;
-      *) MODE="w" ;;
-    esac
-  fi
-}
-
-prepare_install_dir(){
-  install -d -m 0755 "$INSTALL_DIR"
-  install -m 0600 /dev/null "$LOG_FILE" 2>/dev/null || true
-}
-
-detect_media(){
-  if [[ -n "${MEDIA_DIR:-}" && "$MEDIA_DIR" != "" ]]; then
-    :
-  elif [[ -t 0 ]]; then
-    MEDIA_DIR="$(read_choice "Medienpfad" "/srv/media")"
-  else
-    MEDIA_DIR="/srv/media"
+choose_media_dir(){
+  if [[ -d "$MEDIA_DIR" ]]; then
+    return 0
   fi
 
+  if [[ "$AUTO_MODE" -eq 1 ]]; then
+    install -d -m 0775 "$MEDIA_DIR" "$MEDIA_DIR/movies" "$MEDIA_DIR/series" "$MEDIA_DIR/downloads"
+    return 0
+  fi
+
+  printf 'Medienpfad [%s]: ' "$MEDIA_DIR" >/dev/tty
+  IFS= read -r MEDIA_DIR </dev/tty || MEDIA_DIR="/srv/media"
+  MEDIA_DIR="${MEDIA_DIR:-/srv/media}"
   [[ "$MEDIA_DIR" == /* ]] || fail "Medienpfad muss absolut sein: $MEDIA_DIR"
-  install -d -m 0775 "$MEDIA_DIR" "$MEDIA_DIR/movies" "$MEDIA_DIR/series" "$MEDIA_DIR/downloads" 2>/dev/null || true
-  ok "Medienpfad: $MEDIA_DIR"
+  install -d -m 0775 "$MEDIA_DIR" "$MEDIA_DIR/movies" "$MEDIA_DIR/series" "$MEDIA_DIR/downloads"
 }
 
-write_env(){
-  local APP_PASSWORD
-  local QBIT_PASSWORD
-  local QBIT_API_KEY
-  local JELLYFIN_PASSWORD
-  local SONARR_PASSWORD
-  local RADARR_PASSWORD
-  local PROWLARR_PASSWORD
-  local SEERR_PASSWORD
+write_env_file(){
+  local qbit_user="admin"
+  local qbit_password
+  local qbit_api_key
+  local app_password
+  local jellyfin_password
+  local sonarr_password
+  local radarr_password
+  local prowlarr_password
+  local seerr_password
 
-  APP_PASSWORD="$(random_string)"
-  QBIT_PASSWORD="$(random_string)"
-  QBIT_API_KEY="$(random_string)"
-  JELLYFIN_PASSWORD="$(random_string)"
-  SONARR_PASSWORD="$(random_string)"
-  RADARR_PASSWORD="$(random_string)"
-  PROWLARR_PASSWORD="$(random_string)"
-  SEERR_PASSWORD="$(random_string)"
+  qbit_password="$(random_password)"
+  qbit_api_key="$(random_password)"
+  app_password="$(random_password)"
+  jellyfin_password="$(random_password)"
+  sonarr_password="$(random_password)"
+  radarr_password="$(random_password)"
+  prowlarr_password="$(random_password)"
+  seerr_password="$(random_password)"
 
+  mkdir -p "$INSTALL_DIR"
   cat > "$INSTALL_DIR/.env" <<EOF
 TZ=$TIMEZONE
 PUID=1000
 PGID=1000
 DATA=$INSTALL_DIR/data
 MEDIA=$MEDIA_DIR
-QBIT_USER=$QBIT_USER
-QBIT_PASSWORD=$QBIT_PASSWORD
-QBIT_API_KEY=$QBIT_API_KEY
-QBIT_PORT=$QBIT_PORT
-QBIT_TORRENT_PORT=$QBIT_TORRENT_PORT
-TS_HOST=$TS_HOST
+QBIT_USER=$qbit_user
+QBIT_PASSWORD=$qbit_password
+QBIT_API_KEY=$qbit_api_key
+QBIT_PORT=8080
+QBIT_TORRENT_PORT=6881
+TS_HOST=jellystack
 TS_KEY=
-JELLYFIN_USER=$ADMIN_USER
-JELLYFIN_PASSWORD=$JELLYFIN_PASSWORD
-SONARR_USER=$ADMIN_USER
-SONARR_PASSWORD=$SONARR_PASSWORD
-RADARR_USER=$ADMIN_USER
-RADARR_PASSWORD=$RADARR_PASSWORD
-PROWLARR_USER=$ADMIN_USER
-PROWLARR_PASSWORD=$PROWLARR_PASSWORD
-SEERR_USER=$ADMIN_USER
-SEERR_PASSWORD=$SEERR_PASSWORD
-APP_PASSWORD=$APP_PASSWORD
+JELLYFIN_USER=admin
+JELLYFIN_PASSWORD=$jellyfin_password
+SONARR_USER=admin
+SONARR_PASSWORD=$sonarr_password
+RADARR_USER=admin
+RADARR_PASSWORD=$radarr_password
+PROWLARR_USER=admin
+PROWLARR_PASSWORD=$prowlarr_password
+SEERR_USER=admin
+SEERR_PASSWORD=$seerr_password
+APP_PASSWORD=$app_password
 EOF
-
   chmod 600 "$INSTALL_DIR/.env"
-  printf '%s\n' "$QBIT_API_KEY" > "$INSTALL_DIR/qbit_api_key.txt"
-  printf '%s\n' "$QBIT_PASSWORD" > "$INSTALL_DIR/qbit_web_password.txt"
-  printf '%s\n' "$APP_PASSWORD" > "$INSTALL_DIR/app_password.txt"
 
-  export QBIT_PASSWORD QBIT_API_KEY JELLYFIN_PASSWORD SONARR_PASSWORD RADARR_PASSWORD PROWLARR_PASSWORD SEERR_PASSWORD APP_PASSWORD
+  printf '%s\n' "$qbit_password" > "$INSTALL_DIR/qbit_web_password.txt"
+  printf '%s\n' "$qbit_api_key" > "$INSTALL_DIR/qbit_api_key.txt"
+  printf '%s\n' "$app_password" > "$INSTALL_DIR/app_password.txt"
 }
 
-write_compose(){
+write_compose_file(){
   cat > "$INSTALL_DIR/compose.yaml" <<'YAML'
 name: jellyfin-media-stack
 services:
@@ -299,41 +298,48 @@ YAML
 
 start_stack(){
   cd "$INSTALL_DIR"
-  install -d -m 0775 "$DATA_DIR" 2>/dev/null || true
-  for dir in "$INSTALL_DIR/data"/jellyfin "$INSTALL_DIR/data"/seerr "$INSTALL_DIR/data"/sonarr "$INSTALL_DIR/data"/radarr "$INSTALL_DIR/data"/prowlarr "$INSTALL_DIR/data"/qbittorrent "$INSTALL_DIR/data"/tailscale; do
-    install -d -m 0775 "$dir" 2>/dev/null || true
-  done
+  mkdir -p "$INSTALL_DIR/data" "$INSTALL_DIR/data"/jellyfin/config "$INSTALL_DIR/data"/jellyfin/cache "$INSTALL_DIR/data"/seerr/config "$INSTALL_DIR/data"/sonarr/config "$INSTALL_DIR/data"/radarr/config "$INSTALL_DIR/data"/prowlarr/config "$INSTALL_DIR/data"/qbittorrent/config "$INSTALL_DIR/data"/tailscale/state
   docker compose up -d --remove-orphans
 }
 
 print_summary(){
+  local qbit_api
+  local qbit_password
+  local app_password
+
+  qbit_api="$(cat "$INSTALL_DIR/qbit_api_key.txt" 2>/dev/null || echo unknown)"
+  qbit_password="$(cat "$INSTALL_DIR/qbit_web_password.txt" 2>/dev/null || echo unknown)"
+  app_password="$(cat "$INSTALL_DIR/app_password.txt" 2>/dev/null || echo unknown)"
+
   printf '\n====================================================\n'
-  printf 'Jellyfin Media Stack installiert\n'
+  printf 'Jellyfin Media Stack\n'
   printf '====================================================\n'
-  printf 'Admin Benutzer: %s\n' "$ADMIN_USER"
-  printf 'Admin Passwort: %s\n' "${APP_PASSWORD:-$(cat "$INSTALL_DIR/app_password.txt" 2>/dev/null || echo unknown)}"
-  printf 'qBittorrent Web: http://127.0.0.1:%s\n' "$QBIT_PORT"
-  printf 'Jellyfin: http://127.0.0.1:8096\n'
-  printf 'Sonarr: http://127.0.0.1:8989\n'
-  printf 'Radarr: http://127.0.0.1:7878\n'
-  printf 'Prowlarr: http://127.0.0.1:9696\n'
-  printf 'Seerr: http://127.0.0.1:5055\n'
-  printf 'qBittorrent API-Key: %s\n' "$(cat "$INSTALL_DIR/qbit_api_key.txt" 2>/dev/null || echo unknown)"
-  printf 'Medienpfad: %s\n' "$MEDIA_DIR"
-  printf 'Installationspfad: %s\n' "$INSTALL_DIR"
-  printf 'Optional VPN: docker compose --profile vpn up -d\n'
-  printf '====================================================\n'
+  printf 'Admin Benutzer: admin\n'
+  printf 'Admin Passwort: %s\n' "$app_password"
+  printf 'qBittorrent Benutzer: admin\n'
+  printf 'qBittorrent Passwort: %s\n' "$qbit_password"
+  printf 'qBittorrent API-Key: %s\n' "$qbit_api"
+  printf '\nURLs\n'
+  printf '  Jellyfin: http://127.0.0.1:8096\n'
+  printf '  Sonarr:   http://127.0.0.1:8989\n'
+  printf '  Radarr:   http://127.0.0.1:7878\n'
+  printf '  Prowlarr: http://127.0.0.1:9696\n'
+  printf '  Seerr:    http://127.0.0.1:5055\n'
+  printf '  qBittorrent: http://127.0.0.1:8080\n'
+  printf '  Downloadpfad: %s\n' "$MEDIA_DIR/downloads"
+  printf '  Installationsordner: %s\n' "$INSTALL_DIR"
+  printf '  Optional VPN: docker compose --profile vpn up -d\n'
+  printf '====================================================\n\n'
 }
 
 main(){
-  ensure_root
+  require_root
   detect_os
-  choose_mode
-  prepare_install_dir
-  detect_media
-  ensure_docker
-  write_env
-  write_compose
+  check_existing_install
+  install_docker
+  choose_media_dir
+  write_env_file
+  write_compose_file
   start_stack
   print_summary
 }
