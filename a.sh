@@ -14,7 +14,6 @@ fail(){ printf '\033[1;31m[✗]\033[0m %s\n' "$1" >&2; exit 1; }
 random_password(){ LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 25; }
 
 require_root(){ [[ ${EUID:-$(id -u)} -eq 0 ]] || fail "Bitte mit sudo ausführen."; }
-
 check_os(){
   [[ -r /etc/os-release ]] || fail "/etc/os-release fehlt."
   . /etc/os-release
@@ -33,7 +32,6 @@ install_docker(){
   apt-get update -qq
   apt-get install -y ca-certificates curl gnupg lsb-release
   install -m 0755 -d /etc/apt/keyrings
-  . /etc/os-release
   curl -fsSL "https://download.docker.com/linux/${ID}/gpg" | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable" > /etc/apt/sources.list.d/docker.list
   apt-get update -qq
@@ -44,12 +42,11 @@ install_docker(){
 }
 
 prepare_dir(){
-  rm -rf "$INSTALL_DIR"
-  mkdir -p "$INSTALL_DIR"
+  install -d -m 0755 "$INSTALL_DIR"
   install -d -m 0775 "$MEDIA_DIR" "$MEDIA_DIR/movies" "$MEDIA_DIR/series" "$MEDIA_DIR/downloads"
 }
 
-generate_credentials(){
+write_env(){
   APP_PASSWORD="$(random_password)"
   QBIT_PASSWORD="$(random_password)"
   QBIT_API_KEY="$(random_password)"
@@ -58,9 +55,7 @@ generate_credentials(){
   RADARR_PASSWORD="$(random_password)"
   PROWLARR_PASSWORD="$(random_password)"
   SEERR_PASSWORD="$(random_password)"
-}
 
-write_env(){
   cat > "$INSTALL_DIR/.env" <<EOF
 TZ=$TIMEZONE
 PUID=1000
@@ -255,7 +250,6 @@ main(){
   check_os
   install_docker
   prepare_dir
-  generate_credentials
   write_env
   write_compose
   start_stack
