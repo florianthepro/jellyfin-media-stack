@@ -8,63 +8,33 @@ MEDIA_DIR="${MEDIA_DIR:-/srv/media}"
 TIMEZONE="${TIMEZONE:-Europe/Berlin}"
 AUTO_MODE=0
 
-if [[ "${1:-}" == "--auto" ]]; then
-  AUTO_MODE=1
-fi
-
 info(){ printf '\033[1;34m[i]\033[0m %s\n' "$1"; }
 ok(){ printf '\033[1;32m[✓]\033[0m %s\n' "$1"; }
 warn(){ printf '\033[1;33m[!]\033[0m %s\n' "$1" >&2; }
 fail(){ printf '\033[1;31m[✗]\033[0m %s\n' "$1" >&2; exit 1; }
+random_password(){ LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 25; }
 
-random_password(){
-  LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 25
+require_root(){ [[ ${EUID:-$(id -u)} -eq 0 ]] || fail "Bitte mit sudo ausführen."; }
+
+check_os(){
+  [[ -r /etc/os-release ]] || fail "/etc/os-release fehlt."
+  . /etc/os-release
+  case "${ID:-}" in
+    debian|ubuntu) ;;
+    *) fail "Nur Debian/Ubuntu werden unterstützt." ;;
+  esac
 }
 
 ask_yes(){
   local prompt="$1" default="${2:-n}"
-  local answer=""
-  if [[ "$AUTO_MODE" -eq 1 ]]; then
-    return 0
-  fi
+  local answer
   printf '%s [%s]: ' "$prompt" "$default" >/dev/tty
   IFS= read -r answer </dev/tty || answer="$default"
   answer="${answer:-$default}"
   case "${answer,,}" in
     y|yes|j|ja) return 0 ;;
-    n|no|nein) return 1 ;;
     *) return 1 ;;
   esac
-}
-
-require_root(){
-  [[ ${EUID:-$(id -u)} -eq 0 ]] || fail "Bitte mit sudo ausführen: curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/bash.sh | sudo bash"
-}
-
-detect_os(){
-  [[ -r /etc/os-release ]] || fail "/etc/os-release fehlt. Debian/Ubuntu wird benötigt."
-  . /etc/os-release
-  case "${ID:-}" in
-    debian|ubuntu) ;;
-    *) fail "Betriebssystem ${ID:-unbekannt} nicht unterstützt. Nutze Debian oder Ubuntu." ;;
-  esac
-}
-
-check_existing_install(){
-  if [[ -f "$INSTALL_DIR/compose.yaml" ]] || [[ -f "$INSTALL_DIR/.env" ]]; then
-    if [[ "$AUTO_MODE" -eq 1 ]]; then
-      info "Vorhandene Installation erkannt. Überschreibe sie automatisch."
-      rm -rf "$INSTALL_DIR"
-      return 0
-    fi
-
-    if ask_yes "Vorhandene Installation erkannt. Neu aufsetzen?" n; then
-      rm -rf "$INSTALL_DIR"
-      return 0
-    fi
-    info "Bestehende Installation bleibt unverändert."
-    exit 0
-  fi
 }
 
 install_docker(){
@@ -72,13 +42,7 @@ install_docker(){
     ok "Docker/Compose vorhanden"
     return 0
   fi
-
-  if [[ "$AUTO_MODE" -eq 1 ]]; then
-    info "Docker wird installiert..."
-  else
-    warn "Docker fehlt. Installation wird gestartet..."
-  fi
-
+  warn "Docker fehlt. Installation wird gestartet..."
   apt-get update -qq
   apt-get install -y ca-certificates curl gnupg lsb-release
   install -m 0755 -d /etc/apt/keyrings
@@ -94,41 +58,46 @@ install_docker(){
 
 choose_media_dir(){
   if [[ -d "$MEDIA_DIR" ]]; then
+    ok "Medienpfad: $MEDIA_DIR"
     return 0
   fi
-
-  if [[ "$AUTO_MODE" -eq 1 ]]; then
-    install -d -m 0775 "$MEDIA_DIR" "$MEDIA_DIR/movies" "$MEDIA_DIR/series" "$MEDIA_DIR/downloads"
-    return 0
+  if [[ -t 0 ]]; then
+    printf 'Medienpfad [%s]: ' "$MEDIA_DIR" >/dev/tty
+    IFS= read -r MEDIA_DIR </dev/tty || MEDIA_DIR="/srv/media"
   fi
-
-  printf 'Medienpfad [%s]: ' "$MEDIA_DIR" >/dev/tty
-  IFS= read -r MEDIA_DIR </dev/tty || MEDIA_DIR="/srv/media"
   MEDIA_DIR="${MEDIA_DIR:-/srv/media}"
   [[ "$MEDIA_DIR" == /* ]] || fail "Medienpfad muss absolut sein: $MEDIA_DIR"
   install -d -m 0775 "$MEDIA_DIR" "$MEDIA_DIR/movies" "$MEDIA_DIR/series" "$MEDIA_DIR/downloads"
+  ok "Medienpfad: $MEDIA_DIR"
 }
 
-write_env_file(){
-  local qbit_user="admin"
-  local qbit_password
-  local qbit_api_key
-  local app_password
-  local jellyfin_password
-  local sonarr_password
-  local radarr_password
-  local prowlarr_password
-  local seerr_password
+detect_existing(){
+  if [[ -f "$INSTALL_DIR/.env" ]] || [[ -f "$INSTALL_DIR/compose.yaml" ]]; then
+    if [[ -t 0 ]] && ask_yes "Vorhandene Installation erkannt. Neu aufsetzen?" n; then
+      rm -rf "$INSTALL_DIR"
+      return
+    fi
+    if [[ ! -t 0 ]]; then
+      rm -rf "$INSTALL_DIR"
+      return
+    fi
+    info "Bestehende Installation bleibt unverändert."
+    exit 0
+  fi
+}
 
-  qbit_password="$(random_password)"
-  qbit_api_key="$(random_password)"
-  app_password="$(random_password)"
-  jellyfin_password="$(random_password)"
-  sonarr_password="$(random_password)"
-  radarr_password="$(random_password)"
-  prowlarr_password="$(random_password)"
-  seerr_password="$(random_password)"
+generate_credentials(){
+  APP_PASSWORD="$(random_password)"
+  QBIT_PASSWORD="$(random_password)"
+  QBIT_API_KEY="$(random_password)"
+  JELLYFIN_PASSWORD="$(random_password)"
+  SONARR_PASSWORD="$(random_password)"
+  RADARR_PASSWORD="$(random_password)"
+  PROWLARR_PASSWORD="$(random_password)"
+  SEERR_PASSWORD="$(random_password)"
+}
 
+write_env(){
   mkdir -p "$INSTALL_DIR"
   cat > "$INSTALL_DIR/.env" <<EOF
 TZ=$TIMEZONE
@@ -136,33 +105,32 @@ PUID=1000
 PGID=1000
 DATA=$INSTALL_DIR/data
 MEDIA=$MEDIA_DIR
-QBIT_USER=$qbit_user
-QBIT_PASSWORD=$qbit_password
-QBIT_API_KEY=$qbit_api_key
+QBIT_USER=admin
+QBIT_PASSWORD=$QBIT_PASSWORD
+QBIT_API_KEY=$QBIT_API_KEY
 QBIT_PORT=8080
 QBIT_TORRENT_PORT=6881
 TS_HOST=jellystack
 TS_KEY=
 JELLYFIN_USER=admin
-JELLYFIN_PASSWORD=$jellyfin_password
+JELLYFIN_PASSWORD=$JELLYFIN_PASSWORD
 SONARR_USER=admin
-SONARR_PASSWORD=$sonarr_password
+SONARR_PASSWORD=$SONARR_PASSWORD
 RADARR_USER=admin
-RADARR_PASSWORD=$radarr_password
+RADARR_PASSWORD=$RADARR_PASSWORD
 PROWLARR_USER=admin
-PROWLARR_PASSWORD=$prowlarr_password
+PROWLARR_PASSWORD=$PROWLARR_PASSWORD
 SEERR_USER=admin
-SEERR_PASSWORD=$seerr_password
-APP_PASSWORD=$app_password
+SEERR_PASSWORD=$SEERR_PASSWORD
+APP_PASSWORD=$APP_PASSWORD
 EOF
   chmod 600 "$INSTALL_DIR/.env"
-
-  printf '%s\n' "$qbit_password" > "$INSTALL_DIR/qbit_web_password.txt"
-  printf '%s\n' "$qbit_api_key" > "$INSTALL_DIR/qbit_api_key.txt"
-  printf '%s\n' "$app_password" > "$INSTALL_DIR/app_password.txt"
+  printf '%s\n' "$QBIT_PASSWORD" > "$INSTALL_DIR/qbit_web_password.txt"
+  printf '%s\n' "$QBIT_API_KEY" > "$INSTALL_DIR/qbit_api_key.txt"
+  printf '%s\n' "$APP_PASSWORD" > "$INSTALL_DIR/app_password.txt"
 }
 
-write_compose_file(){
+write_compose(){
   cat > "$INSTALL_DIR/compose.yaml" <<'YAML'
 name: jellyfin-media-stack
 services:
@@ -290,10 +258,6 @@ services:
       - qbittorrent
     restart: unless-stopped
 YAML
-
-  set -a
-  . "$INSTALL_DIR/.env"
-  set +a
 }
 
 start_stack(){
@@ -303,22 +267,14 @@ start_stack(){
 }
 
 print_summary(){
-  local qbit_api
-  local qbit_password
-  local app_password
-
-  qbit_api="$(cat "$INSTALL_DIR/qbit_api_key.txt" 2>/dev/null || echo unknown)"
-  qbit_password="$(cat "$INSTALL_DIR/qbit_web_password.txt" 2>/dev/null || echo unknown)"
-  app_password="$(cat "$INSTALL_DIR/app_password.txt" 2>/dev/null || echo unknown)"
-
   printf '\n====================================================\n'
   printf 'Jellyfin Media Stack\n'
   printf '====================================================\n'
   printf 'Admin Benutzer: admin\n'
-  printf 'Admin Passwort: %s\n' "$app_password"
+  printf 'Admin Passwort: %s\n' "$APP_PASSWORD"
   printf 'qBittorrent Benutzer: admin\n'
-  printf 'qBittorrent Passwort: %s\n' "$qbit_password"
-  printf 'qBittorrent API-Key: %s\n' "$qbit_api"
+  printf 'qBittorrent Passwort: %s\n' "$QBIT_PASSWORD"
+  printf 'qBittorrent API-Key: %s\n' "$QBIT_API_KEY"
   printf '\nURLs\n'
   printf '  Jellyfin: http://127.0.0.1:8096\n'
   printf '  Sonarr:   http://127.0.0.1:8989\n'
@@ -326,20 +282,21 @@ print_summary(){
   printf '  Prowlarr: http://127.0.0.1:9696\n'
   printf '  Seerr:    http://127.0.0.1:5055\n'
   printf '  qBittorrent: http://127.0.0.1:8080\n'
-  printf '  Downloadpfad: %s\n' "$MEDIA_DIR/downloads"
+  printf '  Downloadpfad: %s/downloads\n' "$MEDIA_DIR"
   printf '  Installationsordner: %s\n' "$INSTALL_DIR"
   printf '  Optional VPN: docker compose --profile vpn up -d\n'
-  printf '====================================================\n\n'
+  printf '====================================================\n'
 }
 
 main(){
   require_root
-  detect_os
-  check_existing_install
+  check_os
+  detect_existing
   install_docker
   choose_media_dir
-  write_env_file
-  write_compose_file
+  generate_credentials
+  write_env
+  write_compose
   start_stack
   print_summary
 }
