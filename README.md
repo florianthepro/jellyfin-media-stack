@@ -1,50 +1,58 @@
 # Jellyfin Media Stack
 
-Einfaches Docker-Setup für Jellyfin, qBittorrent, Sonarr, Radarr, Prowlarr und Seerr.
+Einfacher Docker-Stack für Jellyfin, qBittorrent, Sonarr, Radarr, Prowlarr und Seerr.
 
 ## Schnellstart
 
-Interaktiv starten:
+Interaktiv / Auswahl nach Start:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/bash.sh | sudo bash
 ```
 
-Automatisch starten:
+Automatisch ohne Auswahl:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/a.sh | sudo bash
 ```
 
-## Was das Setup macht
+## Ablauf
 
-- prüft Debian/Ubuntu und Docker/Compose
-- installiert Docker automatisch, falls erforderlich
-- prüft bzw. legt den Medienpfad an
-- erzeugt zufällige 25-Zeichen-Passwörter
-- setzt für alle relevanten Web-UIs den Benutzer `admin`
-- erzeugt einen eigenen qBittorrent-API-Key
-- schreibt `.env` und `compose.yaml` nach `/opt/jellyfin-media-stack`
-- startet den kompletten Stack
-- zeigt am Ende alle URLs, Zugangsdaten und Schlüssel an
+- `bash.sh` ist der Haupt-Installer
+- Nach dem Start aller Container fragt `bash.sh` nach `m` oder `a`
+- `m` = manuelle Einrichtung in den Web-UIs
+- `a` = automatisches Setup über `a.sh`
+- `a.sh` ist für die automatische App-Konfiguration gedacht, nicht für die Erstinstallation von Docker oder das Starten des Stacks
 
-## Zugangsdaten
+## Was passieren soll
 
-- Benutzername: `admin`
+- Docker/Compose prüfen und falls nötig installieren
+- Medienordner erstellen
+- `.env` und `compose.yaml` schreiben
+- Stack starten
+- qBittorrent API-Key aus der laufenden Config auslesen
+- finale Zugangsdaten ausgeben
+- danach Auswahl zwischen manuellem GUI-Setup oder automatischem Setup
+
+## Standardwerte
+
+- Benutzer: `admin`
 - Passwort: zufällig erzeugt, 25 Zeichen
-- qBittorrent API-Key: ebenfalls zufällig erzeugt, am Ende angezeigt und in `qbit_api_key.txt` gespeichert
+- qBittorrent API-Key: zufällig erzeugt, zusätzlich in `qbit_api_key.txt` gespeichert
+- Medienpfad: `/srv/media`
+- Downloadpfad: `/srv/media/downloads`
+- Installationspfad: `/opt/jellyfin-media-stack`
 
-## Standardpfade
+## URLs
 
-- Medienordner: `/srv/media`
-- Downloadordner: `/srv/media/downloads`
-- Installationsordner: `/opt/jellyfin-media-stack`
-
-## Infos
-
-- qBittorrent: http://127.0.0.1:8080
 - Jellyfin: http://127.0.0.1:8096
 - Sonarr: http://127.0.0.1:8989
 - Radarr: http://127.0.0.1:7878
 - Prowlarr: http://127.0.0.1:9696
 - Seerr: http://127.0.0.1:5055
+- qBittorrent: http://127.0.0.1:8080
 
-Der qBittorrent-API-Key wird wie die anderen Zugangsdaten am Ende ausgegeben und zusätzlich in `/opt/jellyfin-media-stack/qbit_api_key.txt` gespeichert.
+## Manuell vs automatisch
+
+- `m` = der Nutzer richtet die Apps im Browser selbst ein
+- `a` = `a.sh` versucht, die Apps automatisch per API zu konfigurieren
+
+Die I/O-Ausgabe zeigt am Ende die echten Zugangsdaten und den qBittorrent API-Key an, damit man sie direkt kopieren kann.

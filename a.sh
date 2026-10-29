@@ -28,7 +28,7 @@ install_docker(){
     ok "Docker/Compose vorhanden"
     return 0
   fi
-  warn "Docker fehlt. Installation wird gestartet..."
+  warn "Docker fehlt. Wird installiert..."
   apt-get update -qq
   apt-get install -y ca-certificates curl gnupg lsb-release
   install -m 0755 -d /etc/apt/keyrings
@@ -221,6 +221,20 @@ start_stack(){
   cd "$INSTALL_DIR"
   mkdir -p "$INSTALL_DIR/data" "$INSTALL_DIR/data"/jellyfin/config "$INSTALL_DIR/data"/jellyfin/cache "$INSTALL_DIR/data"/seerr/config "$INSTALL_DIR/data"/sonarr/config "$INSTALL_DIR/data"/radarr/config "$INSTALL_DIR/data"/prowlarr/config "$INSTALL_DIR/data"/qbittorrent/config "$INSTALL_DIR/data"/tailscale/state
   docker compose up -d --remove-orphans
+
+  for i in $(seq 1 80); do
+    if docker ps --format '{{.Names}}' | grep -qx 'qbittorrent'; then
+      break
+    fi
+    sleep 2
+  done
+
+  local api_key
+  api_key="$(docker exec qbittorrent sh -lc "grep -m1 -oE 'ApiKey\s*=\s*[^[:space:]]+' /config/qBittorrent/qBittorrent.conf 2>/dev/null | awk '{print \$3}' || true")"
+  if [[ -n "$api_key" ]]; then
+    printf '%s\n' "$api_key" > "$INSTALL_DIR/qbit_api_key.txt"
+    QBIT_API_KEY="$api_key"
+  fi
 }
 
 print_summary(){
@@ -231,7 +245,7 @@ print_summary(){
   printf 'Admin Passwort: %s\n' "$APP_PASSWORD"
   printf 'qBittorrent Benutzer: admin\n'
   printf 'qBittorrent Passwort: %s\n' "$QBIT_PASSWORD"
-  printf 'qBittorrent API-Key: %s\n' "$QBIT_API_KEY"
+  printf 'qBittorrent API-Key: %s\n' "$(cat "$INSTALL_DIR/qbit_api_key.txt" 2>/dev/null || echo "$QBIT_API_KEY")"
   printf '\nURLs\n'
   printf '  Jellyfin: http://127.0.0.1:8096\n'
   printf '  Sonarr:   http://127.0.0.1:8989\n'
@@ -241,8 +255,77 @@ print_summary(){
   printf '  qBittorrent: http://127.0.0.1:8080\n'
   printf '  Downloadpfad: %s/downloads\n' "$MEDIA_DIR"
   printf '  Installationsordner: %s\n' "$INSTALL_DIR"
-  printf '  Optional VPN: docker compose --profile vpn up -d\n'
-  printf '====================================================\n'
+  printf '====================================================\n\n'
+}
+
+ask_mode(){
+  if [[ -t 0 ]]; then
+    printf 'Modus wählen [m=manuell / a=automatisch]: ' >/dev/tty
+    IFS= read -r answer </dev/tty || answer="m"
+    answer="${answer:-m}"
+    case "${answer,,}" in
+      a|auto|automatisch)
+        return 2
+        ;;
+      m|manual|manuell)
+        return 1
+        ;;
+      *)
+        return 1
+        ;;
+    esac
+  fi
+  return 1
+}
+
+show_manual(){
+  cat <<EOF
+
+Jellyfin Media Stack - manuelle Einrichtung
+
+1. Jellyfin
+   URL: http://127.0.0.1:8096
+   Admin anlegen
+   Medien: /media/movies und /media/series
+
+2. qBittorrent
+   URL: http://127.0.0.1:8080
+   Benutzer: admin
+   Passwort: $(cat "$INSTALL_DIR/qbit_web_password.txt" 2>/dev/null || echo "siehe .env")
+   API-Key: $(cat "$INSTALL_DIR/qbit_api_key.txt" 2>/dev/null || echo "noch nicht verfügbar")
+   Downloadpfad: $MEDIA_DIR/downloads
+
+3. Sonarr
+   URL: http://127.0.0.1:8989
+   Root Folder: /tv
+   qBittorrent eintragen
+
+4. Radarr
+   URL: http://127.0.0.1:7878
+   Root Folder: /movies
+   qBittorrent eintragen
+
+5. Prowlarr
+   URL: http://127.0.0.1:9696
+   Indexer konfigurieren
+
+6. Seerr
+   URL: http://127.0.0.1:5055
+   Jellyfin und Sonarr/Radarr verbinden
+
+7. Abschluss
+   docker compose ps
+   docker compose logs --tail=100
+EOF
+}
+
+run_auto(){
+  RAW_URL="https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/a.sh"
+  TMP_DIR="$(mktemp -d)"
+  trap 'rm -rf "$TMP_DIR"' EXIT
+  curl -fsSL "$RAW_URL" -o "$TMP_DIR/a.sh" || { fail "Fehler beim Laden von a.sh"; }
+  chmod +x "$TMP_DIR/a.sh"
+  exec env APP_PASSWORD="$APP_PASSWORD" QBIT_PASSWORD="$QBIT_PASSWORD" QBIT_API_KEY="$QBIT_API_KEY" JELLYFIN_PASSWORD="$JELLYFIN_PASSWORD" SONARR_PASSWORD="$SONARR_PASSWORD" RADARR_PASSWORD="$RADARR_PASSWORD" PROWLARR_PASSWORD="$PROWLARR_PASSWORD" SEERR_PASSWORD="$SEERR_PASSWORD" INSTALL_DIR="$INSTALL_DIR" MEDIA_DIR="$MEDIA_DIR" bash "$TMP_DIR/a.sh"
 }
 
 main(){
@@ -254,6 +337,20 @@ main(){
   write_compose
   start_stack
   print_summary
+
+  if ask_mode; then
+    :
+  fi
+  case "$?" in
+    2)
+      info "Automatisches Setup gestartet"
+      run_auto
+      ;;
+    1|*)
+      info "Manuelle Einrichtung"
+      show_manual
+      ;;
+  esac
 }
 
 main "$@"
