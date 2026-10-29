@@ -1,0 +1,131 @@
+name: jellyfin-media-stack
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+    ports:
+      - "8096:8096"
+    volumes:
+      - ${DATA:-/opt/jellyfin-media-stack/data}/jellyfin/config:/config
+      - ${DATA:-/opt/jellyfin-media-stack/data}/jellyfin/cache:/cache
+      - ${MEDIA:-/srv/media}/movies:/media/movies:ro
+      - ${MEDIA:-/srv/media}/series:/media/series:ro
+    restart: unless-stopped
+
+  seerr:
+    image: ghcr.io/seerr-team/seerr:latest
+    container_name: seerr
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+    ports:
+      - "5055:5055"
+    volumes:
+      - ${DATA:-/opt/jellyfin-media-stack/data}/seerr/config:/app/config
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Europe/Berlin}
+    ports:
+      - "8989:8989"
+    volumes:
+      - ${DATA:-/opt/jellyfin-media-stack/data}/sonarr/config:/config
+      - ${MEDIA:-/srv/media}/series:/tv
+      - ${MEDIA:-/srv/media}/downloads:/downloads
+    restart: unless-stopped
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Europe/Berlin}
+    ports:
+      - "7878:7878"
+    volumes:
+      - ${DATA:-/opt/jellyfin-media-stack/data}/radarr/config:/config
+      - ${MEDIA:-/srv/media}/movies:/movies
+      - ${MEDIA:-/srv/media}/downloads:/downloads
+    restart: unless-stopped
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Europe/Berlin}
+    ports:
+      - "9696:9696"
+    volumes:
+      - ${DATA:-/opt/jellyfin-media-stack/data}/prowlarr/config:/config
+    restart: unless-stopped
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      TZ: ${TZ:-Europe/Berlin}
+      WEBUI_PORT: ${QBIT_PORT:-8080}
+      TORRENTING_PORT: ${QBIT_TORRENT_PORT:-6881}
+      WEBUI_USERNAME: ${QBIT_USER:-admin}
+      WEBUI_PASSWORD: ${QBIT_PASSWORD:-change-me-now}
+      QBIT_API_KEY: ${QBIT_API_KEY:-}
+    ports:
+      - "${QBIT_PORT:-8080}:8080"
+      - "${QBIT_TORRENT_PORT:-6881}:6881/tcp"
+      - "${QBIT_TORRENT_PORT:-6881}:6881/udp"
+    volumes:
+      - ${DATA:-/opt/jellyfin-media-stack/data}/qbittorrent/config:/config
+      - ${MEDIA:-/srv/media}/downloads:/downloads
+    restart: unless-stopped
+
+  tailscale:
+    profiles: ["tailscale"]
+    image: tailscale/tailscale:stable
+    container_name: tailscale
+    hostname: ${TS_HOST:-jellystack}
+    environment:
+      TS_AUTHKEY: ${TS_KEY:-}
+      TS_AUTH_ONCE: "true"
+      TS_HOSTNAME: ${TS_HOST:-jellystack}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "false"
+    volumes:
+      - ${DATA:-/opt/jellyfin-media-stack/data}/tailscale/state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    restart: unless-stopped
+
+  mullvad:
+    profiles: ["vpn"]
+    image: ghcr.io/mullvad/mullvadvpn:latest
+    container_name: mullvad
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+      VPN_INTERFACE: wg0
+    volumes:
+      - ${DATA:-/opt/jellyfin-media-stack/data}/mullvad:/etc/mullvad
+    network_mode: service:qbittorrent
+    depends_on:
+      - qbittorrent
+    restart: unless-stopped
