@@ -1,21 +1,30 @@
 /* =========================================================
    JELLYFIN 12.4
-   CLEAN MOBILE HOMEPAGE + CSS-ONLY NAVIGATION
+   FINAL CLEAN MOBILE LAYOUT
    ========================================================= */
 
 
 /* =========================================================
-   1. HOMEPAGE
+   1. ALLE GERÄTE
    ========================================================= */
+
+
+/* Kürzlich hinzugefügte Filme und Serien ausblenden */
 
 .section6 {
     display: none !important;
 }
 
+
+/* Überschrift über Filme und Serien ausblenden */
+
 .section0 .sectionTitle,
 .section0 .sectionTitleContainer {
     display: none !important;
 }
+
+
+/* Überschrift und Pfeil von "Als Nächstes" ausblenden */
 
 .section5 .sectionTitle,
 .section5 .sectionTitleContainer {
@@ -24,46 +33,74 @@
 
 
 /* =========================================================
-   2. MOBILE HOMEPAGE
+   2. NUR SMARTPHONE IM HOCHFORMAT
    ========================================================= */
 
-@media (max-width: 1000px) {
+@media (max-width: 700px) and (orientation: portrait) {
 
-    .section0,
-    .section5 {
+    /* -----------------------------------------------------
+       Grundlayout
+       ----------------------------------------------------- */
+
+    html,
+    body {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+
+    main,
+    main.MuiBox-root {
         box-sizing: border-box !important;
+
         width: 100% !important;
         max-width: 100% !important;
-        height: auto !important;
-        max-height: none !important;
-        padding: 0 12px !important;
-        overflow: visible !important;
+
+        margin-top: 0 !important;
+        margin-left: 0 !important;
+
+        padding-top: 0 !important;
+        padding-left: 0 !important;
     }
+
+
+    /* =====================================================
+       3. MOBILE HOMEPAGE
+       ===================================================== */
+
+
+    /* Filme und Serien untereinander */
 
     .section0 {
-        margin: 0 0 28px !important;
-    }
+        box-sizing: border-box !important;
 
-    .section5 {
-        margin: 0 0 24px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+
+        height: auto !important;
+        max-height: none !important;
+
+        margin: 0 0 28px !important;
+        padding: 0 12px !important;
+
+        overflow: visible !important;
     }
 
     .section0 .emby-scroller,
     .section0 .itemsContainer,
     .section0 .scrollSlider,
-    .section0 .itemsContainer.scrollSlider,
-    .section5 .emby-scroller,
-    .section5 .itemsContainer,
-    .section5 .scrollSlider,
-    .section5 .itemsContainer.scrollSlider {
+    .section0 .itemsContainer.scrollSlider {
         display: grid !important;
+
         grid-template-columns: minmax(0, 1fr) !important;
         grid-auto-flow: row !important;
+
         gap: 14px !important;
 
         box-sizing: border-box !important;
+
         width: 100% !important;
         max-width: 100% !important;
+
         height: auto !important;
         max-height: none !important;
 
@@ -75,13 +112,12 @@
     }
 
     .section0 .card,
-    .section0 .cardBox,
-    .section5 .card,
-    .section5 .cardBox {
+    .section0 .cardBox {
         display: block !important;
         float: none !important;
 
         box-sizing: border-box !important;
+
         width: 100% !important;
         min-width: 100% !important;
         max-width: 100% !important;
@@ -90,11 +126,13 @@
         padding: 0 !important;
     }
 
-    .section0 .cardScalable,
-    .section5 .cardScalable {
+    .section0 .cardScalable {
         width: 100% !important;
         aspect-ratio: 16 / 9 !important;
     }
+
+
+    /* Bild enthält die Beschriftung bereits */
 
     .section0 .cardText,
     .section0 .cardText-secondary,
@@ -102,32 +140,84 @@
         display: none !important;
     }
 
+
+    /* -----------------------------------------------------
+       "Als Nächstes" in voller Breite
+       ----------------------------------------------------- */
+
+    .section5 {
+        box-sizing: border-box !important;
+
+        width: 100% !important;
+        max-width: 100% !important;
+
+        height: auto !important;
+        max-height: none !important;
+
+        margin: 0 0 24px !important;
+        padding: 0 12px !important;
+
+        overflow: visible !important;
+    }
+
+    .section5 .emby-scroller,
+    .section5 .itemsContainer,
+    .section5 .scrollSlider,
+    .section5 .itemsContainer.scrollSlider {
+        display: grid !important;
+
+        grid-template-columns: minmax(0, 1fr) !important;
+        grid-auto-flow: row !important;
+
+        gap: 14px !important;
+
+        box-sizing: border-box !important;
+
+        width: 100% !important;
+        max-width: 100% !important;
+
+        height: auto !important;
+        max-height: none !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        overflow: visible !important;
+        transform: none !important;
+    }
+
+    .section5 .card,
+    .section5 .cardBox {
+        display: block !important;
+        float: none !important;
+
+        box-sizing: border-box !important;
+
+        width: 100% !important;
+        min-width: 100% !important;
+        max-width: 100% !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .section5 .cardScalable {
+        width: 100% !important;
+        aspect-ratio: 16 / 9 !important;
+    }
+
+
+    /* Horizontale Scrollpfeile entfernen */
+
     .section0 .emby-scrollbuttons,
     .section5 .emby-scrollbuttons {
         display: none !important;
     }
-}
 
 
-/* =========================================================
-   3. MOBILER HEADER
-   ========================================================= */
-
-@media (max-width: 1000px) {
-
-    html,
-    body {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-    }
-
-    main,
-    main.MuiBox-root {
-        margin-top: 0 !important;
-        margin-left: 0 !important;
-        padding-top: 0 !important;
-        padding-left: 0 !important;
-    }
+    /* =====================================================
+       4. MOBILER HEADER
+       ===================================================== */
 
     header.MuiPaper-root {
         display: block !important;
@@ -152,8 +242,12 @@
         max-height: 48px !important;
 
         margin: 0 !important;
-        padding: 0 !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
     }
+
+
+    /* Burger entfernen */
 
     button[aria-label="Menü öffnen"],
     button[aria-label="Menu öffnen"],
@@ -177,12 +271,71 @@
 
         opacity: 0 !important;
         overflow: hidden !important;
+
         pointer-events: none !important;
     }
 
 
+    /* -----------------------------------------------------
+       Zurück-Pfeil links im Header freihalten
+       ----------------------------------------------------- */
+
+    header.MuiPaper-root button[aria-label*="Zurück"],
+    header.MuiPaper-root button[aria-label*="zurück"],
+    header.MuiPaper-root button[aria-label*="Back"],
+    header.MuiPaper-root button:has(svg[data-testid="ArrowBackIcon"]),
+    header.MuiPaper-root button:has(svg[data-testid="ArrowBackIosIcon"]) {
+        display: inline-flex !important;
+        visibility: visible !important;
+
+        position: fixed !important;
+
+        top: 0 !important;
+        left: 2px !important;
+
+        z-index: 2147483647 !important;
+
+        align-items: center !important;
+        justify-content: center !important;
+
+        box-sizing: border-box !important;
+
+        width: 40px !important;
+        min-width: 40px !important;
+        max-width: 40px !important;
+
+        height: 48px !important;
+        min-height: 48px !important;
+        max-height: 48px !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        color: rgba(255, 255, 255, 0.72) !important;
+        background: transparent !important;
+
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+
+        opacity: 1 !important;
+
+        pointer-events: auto !important;
+        touch-action: manipulation !important;
+    }
+
+    header.MuiPaper-root button:has(svg[data-testid="ArrowBackIcon"]) svg,
+    header.MuiPaper-root button:has(svg[data-testid="ArrowBackIosIcon"]) svg {
+        width: 22px !important;
+        height: 22px !important;
+
+        color: inherit !important;
+        fill: currentColor !important;
+    }
+
+
     /* =====================================================
-       DRAWER AUF NULL REDUZIEREN
+       5. DRAWER VERSTECKEN, LINKS BEHALTEN
        ===================================================== */
 
     .MuiBackdrop-root,
@@ -195,6 +348,7 @@
 
         background: transparent !important;
         opacity: 0 !important;
+
         pointer-events: none !important;
     }
 
@@ -203,6 +357,7 @@
         visibility: visible !important;
 
         position: fixed !important;
+
         top: 0 !important;
         left: 0 !important;
 
@@ -221,6 +376,7 @@
 
         overflow: visible !important;
         opacity: 1 !important;
+
         pointer-events: none !important;
     }
 
@@ -230,6 +386,7 @@
         visibility: visible !important;
 
         position: fixed !important;
+
         top: 0 !important;
         left: 0 !important;
 
@@ -247,15 +404,20 @@
         padding: 0 !important;
 
         background: transparent !important;
+
         border: 0 !important;
         box-shadow: none !important;
 
         opacity: 1 !important;
         overflow: visible !important;
+
         transform: none !important;
 
         pointer-events: none !important;
     }
+
+
+    /* Serverlogo, Servername und Trennlinien ausblenden */
 
     .MuiDrawer-paper img,
     .MuiDrawer-paper hr,
@@ -263,14 +425,16 @@
     .MuiDrawer-paper .MuiListSubheader-root {
         display: none !important;
         visibility: hidden !important;
+
         pointer-events: none !important;
     }
+
+
+    /* Listen auf 0 × 0 reduzieren */
 
     .MuiDrawer-paper ul {
         display: block !important;
         visibility: visible !important;
-
-        position: static !important;
 
         width: 0 !important;
         min-width: 0 !important;
@@ -284,14 +448,12 @@
         padding: 0 !important;
 
         overflow: visible !important;
-        opacity: 1 !important;
+
         pointer-events: none !important;
     }
 
 
-    /* =====================================================
-       NUR VIER NAVIGATIONSPUNKTE BEHALTEN
-       ===================================================== */
+    /* Alle anderen Menüeinträge ausblenden */
 
     .MuiDrawer-paper li:not(
         :has(> a[href="#/home"])
@@ -304,28 +466,50 @@
     ) {
         display: none !important;
         visibility: hidden !important;
+
         pointer-events: none !important;
     }
 
+
+    /* =====================================================
+       6. HEADERICONS NACH RECHTS VERSCHOBEN
+       44 PX LINKS BLEIBEN FÜR DEN ZURÜCK-PFEIL FREI
+       ===================================================== */
+
+
+    /* Startseite */
+
     .MuiDrawer-paper li:has(> a[href="#/home"]) {
-        left: 4px !important;
+        left: 44px !important;
     }
 
+
+    /* Favoriten */
+
     .MuiDrawer-paper li:has(> a[href*="#/home?tab=1"]) {
-        left: 40px !important;
+        left: 80px !important;
     }
+
+
+    /* Filme */
 
     .MuiDrawer-paper li:has(
         > a[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
     ) {
-        left: 76px !important;
+        left: 116px !important;
     }
+
+
+    /* Serien */
 
     .MuiDrawer-paper li:has(
         > a[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
     ) {
-        left: 112px !important;
+        left: 152px !important;
     }
+
+
+    /* Gemeinsame Positionierung */
 
     .MuiDrawer-paper li:has(> a[href="#/home"]),
     .MuiDrawer-paper li:has(> a[href*="#/home?tab=1"]),
@@ -339,6 +523,7 @@
         visibility: visible !important;
 
         position: fixed !important;
+
         top: 0 !important;
 
         z-index: 2147483646 !important;
@@ -365,7 +550,7 @@
 
 
     /* =====================================================
-       KLICKBARER LINK
+       7. KLICKBARER NAVIGATIONSLINK
        ===================================================== */
 
     .MuiDrawer-paper li:has(> a[href="#/home"]) > a,
@@ -380,6 +565,7 @@
         visibility: visible !important;
 
         position: relative !important;
+
         z-index: 2147483647 !important;
 
         align-items: center !important;
@@ -406,9 +592,6 @@
         box-shadow: none !important;
 
         opacity: 1 !important;
-        overflow: visible !important;
-
-        transform: none !important;
 
         text-decoration: none !important;
         cursor: pointer !important;
@@ -418,6 +601,9 @@
 
         -webkit-tap-highlight-color: transparent !important;
     }
+
+
+    /* Textbeschriftungen ausblenden */
 
     .MuiDrawer-paper li:has(> a[href="#/home"])
         .MuiListItemText-root,
@@ -433,6 +619,9 @@
         .MuiListItemText-root {
         display: none !important;
     }
+
+
+    /* Iconcontainer */
 
     .MuiDrawer-paper li:has(> a[href="#/home"])
         .MuiListItemIcon-root,
@@ -457,15 +646,19 @@
         width: 22px !important;
         min-width: 22px !important;
         max-width: 22px !important;
+
         height: 22px !important;
 
         margin: 0 !important;
         padding: 0 !important;
 
         color: inherit !important;
-        opacity: 1 !important;
+
         pointer-events: none !important;
     }
+
+
+    /* SVG-Icons */
 
     .MuiDrawer-paper li:has(> a[href="#/home"]) svg,
     .MuiDrawer-paper li:has(> a[href*="#/home?tab=1"]) svg,
@@ -481,38 +674,25 @@
         width: 22px !important;
         min-width: 22px !important;
         max-width: 22px !important;
+
         height: 22px !important;
 
         color: inherit !important;
         fill: currentColor !important;
 
-        opacity: 1 !important;
         pointer-events: none !important;
     }
 
 
     /* =====================================================
-       AKTIVE SEITE IN JELLYFIN-BLAU
+       8. AKTIVE SEITE IN JELLYFIN-KONTEXTFARBE
        ===================================================== */
 
-    .MuiDrawer-paper a.Mui-selected[href="#/home"],
-    .MuiDrawer-paper a.Mui-selected[href*="#/home?tab=1"],
-    .MuiDrawer-paper a.Mui-selected[
-        href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"
-    ],
-    .MuiDrawer-paper a.Mui-selected[
-        href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"
-    ],
-    .MuiDrawer-paper a[aria-current="page"][href="#/home"],
-    .MuiDrawer-paper a[aria-current="page"][href*="#/home?tab=1"],
-    .MuiDrawer-paper a[aria-current="page"][
-        href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"
-    ],
-    .MuiDrawer-paper a[aria-current="page"][
-        href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"
-    ] {
+    .MuiDrawer-paper a.Mui-selected,
+    .MuiDrawer-paper a[aria-current="page"] {
         color: var(--jf-palette-primary-main, #00a4dc) !important;
         background: transparent !important;
+
         border: 0 !important;
         box-shadow: none !important;
     }
@@ -525,168 +705,33 @@
         fill: currentColor !important;
     }
 
+
+    /* Touch-Effekt */
+
     .MuiDrawer-paper li > a:active {
         color: var(--jf-palette-primary-main, #00a4dc) !important;
         transform: scale(0.88) !important;
     }
-}
 
 
-/* =========================================================
-   4. FILM- UND SERIENBIBLIOTHEK IM HOCHFORMAT
-   ========================================================= */
+    /* =====================================================
+       9. FILM-/SERIENBIBLIOTHEK:
+       POSTER UNTER TITEL UND AKTIONSLEISTE
+       ===================================================== */
 
-@media (max-width: 700px) and (orientation: portrait) {
-
-    /*
-     * Nur ausführen, wenn Filme oder Serien aktuell
-     * in der Navigation ausgewählt sind.
-     */
-
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
-    ) main,
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
-    ) main,
-    body:has(
-        .MuiDrawer-paper
-        a[aria-current="page"][
-            href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"
-        ]
-    ) main,
-    body:has(
-        .MuiDrawer-paper
-        a[aria-current="page"][
-            href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"
-        ]
-    ) main {
+    main .itemsContainer:not(.scrollSlider) {
         box-sizing: border-box !important;
 
-        width: 100% !important;
-        max-width: 100% !important;
-
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-
-
-    /* Titel Film oder Serien */
-
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
-    ) main h1,
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
-    ) main h2,
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
-    ) main h1,
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
-    ) main h2 {
         position: relative !important;
+
         top: auto !important;
         right: auto !important;
         bottom: auto !important;
         left: auto !important;
 
-        z-index: 1 !important;
-
-        box-sizing: border-box !important;
-
-        margin: 8px 12px 8px 18px !important;
-        padding: 0 !important;
-
-        transform: none !important;
-    }
-
-
-    /* Toolbar unter dem Titel */
-
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
-    ) main .MuiToolbar-root,
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
-    ) main .MuiToolbar-root {
-        display: flex !important;
-
-        position: relative !important;
-        top: auto !important;
-        right: auto !important;
-        bottom: auto !important;
-        left: auto !important;
-
-        z-index: 2 !important;
-
-        align-items: center !important;
-        justify-content: flex-start !important;
-        flex-wrap: nowrap !important;
-
-        box-sizing: border-box !important;
-
-        width: 100% !important;
-        max-width: 100% !important;
-
-        min-height: 48px !important;
-        height: 48px !important;
-
-        margin: 0 0 12px !important;
-        padding: 0 10px !important;
-
-        overflow-x: auto !important;
-        overflow-y: hidden !important;
-
-        transform: none !important;
-
-        scrollbar-width: none !important;
-    }
-
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
-    ) main .MuiToolbar-root::-webkit-scrollbar,
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
-    ) main .MuiToolbar-root::-webkit-scrollbar {
-        display: none !important;
-    }
-
-
-    /*
-     * Raster deutlich unter Titel und Aktionsleiste beginnen.
-     * Der Abstand verhindert die Überlagerung aus dem Screenshot.
-     */
-
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
-    ) main .itemsContainer,
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
-    ) main .itemsContainer {
         clear: both !important;
 
-        position: relative !important;
-        top: auto !important;
-        right: auto !important;
-        bottom: auto !important;
-        left: auto !important;
-
-        box-sizing: border-box !important;
-
-        margin-top: 82px !important;
+        margin-top: 88px !important;
         margin-right: 0 !important;
         margin-left: 0 !important;
 
@@ -696,65 +741,19 @@
         transform: none !important;
     }
 
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
-    ) main .card,
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
-    ) main .cardBox,
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
-    ) main .card,
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
-    ) main .cardBox {
-        position: relative !important;
 
-        top: auto !important;
-        right: auto !important;
-        bottom: auto !important;
-        left: auto !important;
-    }
-}
+    /* Homepage nicht nach unten verschieben */
 
-
-/* =========================================================
-   5. FILM- UND SERIENBIBLIOTHEK IM QUERFORMAT
-   ========================================================= */
-
-@media (min-width: 701px) and (max-width: 1000px) and (orientation: landscape) {
-
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
-    ) main,
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
-    ) main {
-        box-sizing: border-box !important;
-
-        width: 100% !important;
-        max-width: 100% !important;
-
-        margin: 0 !important;
-
-        padding-right: 18px !important;
-        padding-left: 18px !important;
+    .section0 .itemsContainer,
+    .section5 .itemsContainer {
+        margin-top: 0 !important;
     }
 
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
-    ) main .MuiToolbar-root,
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
-    ) main .MuiToolbar-root {
+
+    /* Bibliothekstitel oberhalb des Posters */
+
+    main h1,
+    main h2 {
         position: relative !important;
 
         top: auto !important;
@@ -762,31 +761,42 @@
         bottom: auto !important;
         left: auto !important;
 
-        box-sizing: border-box !important;
+        z-index: 3 !important;
 
-        width: 100% !important;
-        max-width: 100% !important;
-
-        margin: 0 0 12px !important;
+        margin: 6px 12px 8px 14px !important;
         padding: 0 !important;
 
         transform: none !important;
     }
 
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
-    ) main .itemsContainer,
-    body:has(
-        .MuiDrawer-paper
-        a.Mui-selected[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
-    ) main .itemsContainer {
-        clear: both !important;
 
+    /* Aktionsleiste zwischen Titel und Poster */
+
+    main .MuiToolbar-root {
+        z-index: 3 !important;
+
+        box-sizing: border-box !important;
+
+        min-height: 48px !important;
+        max-width: 100% !important;
+
+        margin-right: 0 !important;
+        margin-left: 0 !important;
+
+        padding-right: 8px !important;
+        padding-left: 8px !important;
+    }
+
+
+    /* Alte Kartenverschiebungen entfernen */
+
+    main .itemsContainer:not(.scrollSlider) .card,
+    main .itemsContainer:not(.scrollSlider) .cardBox {
         position: relative !important;
 
-        margin-top: 14px !important;
-
-        transform: none !important;
+        top: auto !important;
+        right: auto !important;
+        bottom: auto !important;
+        left: auto !important;
     }
 }
