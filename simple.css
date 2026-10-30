@@ -83,3 +83,67 @@
         display: none !important;
     }
 }
+/* unknown */
+/* Handy: Seitenmenü und Burger-Button vollständig entfernen */
+@media (max-width: 700px) {
+    .mainDrawer,
+    .mainDrawerHandle,
+    .mainDrawer-shown,
+    .mainDrawer-open,
+    body > .mainDrawer {
+        display: none !important;
+        visibility: hidden !important;
+        position: absolute !important;
+        left: -9999px !important;
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+
+    .headerMenuButton,
+    .headerButtonLeft,
+    .headerButton.headerButtonLeft,
+    .headerTop .headerMenuButton,
+    button.headerMenuButton,
+    button[is="paper-icon-button-light"].headerMenuButton,
+    button[title*="Menü"],
+    button[aria-label*="Menü"],
+    button[title*="Menu"],
+    button[aria-label*="Menu"] {
+        display: none !important;
+        visibility: hidden !important;
+        position: absolute !important;
+        left: -9999px !important;
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+
+    .mainDrawerHandle {
+        touch-action: none !important;
+    }
+
+    .headerLeft {
+        margin-left: 0 !important;
+        padding-left: 0 !important;
+    }
+
+    .headerTop {
+        padding-left: max(10px, env(safe-area-inset-left)) !important;
+    }
+
+    #indexPage,
+    #homeTab,
+    .page,
+    .pageTabContent {
+        margin-left: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+}
