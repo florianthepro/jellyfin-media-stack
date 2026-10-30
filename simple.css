@@ -1,0 +1,85 @@
+/* Kürzlich hinzugefügte Filme und Serien ausblenden */
+.section6 {
+    display: none !important;
+}
+
+/* Überschrift über Filme und Serien ausblenden */
+.section0 .sectionTitle {
+    display: none !important;
+}
+
+/* Überschrift und Pfeil von "Als Nächstes" ausblenden */
+.section5 .sectionTitleContainer {
+    display: none !important;
+}
+
+@media (max-width: 700px) {
+    /* Filme und Serien untereinander */
+    .section0 .itemsContainer,
+    .section0 .emby-scroller {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 14px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        transform: none !important;
+    }
+
+    .section0 .card,
+    .section0 .cardBox {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        margin: 0 !important;
+    }
+
+    .section0 .cardScalable {
+        width: 100% !important;
+        aspect-ratio: 16 / 9 !important;
+    }
+
+    /* "Als Nächstes" genauso groß und untereinander */
+    .section5 {
+        box-sizing: border-box !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        max-height: none !important;
+        margin-bottom: 24px !important;
+        padding-right: 14px !important;
+        padding-left: 14px !important;
+        overflow: visible !important;
+    }
+
+    .section5 .emby-scroller,
+    .section5 .itemsContainer {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 14px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        transform: none !important;
+    }
+
+    .section5 .card,
+    .section5 .cardBox {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        margin: 0 !important;
+    }
+
+    .section5 .cardScalable {
+        width: 100% !important;
+        aspect-ratio: 16 / 9 !important;
+    }
+
+    .section0 .emby-scrollbuttons,
+    .section5 .emby-scrollbuttons {
+        display: none !important;
+    }
+}
