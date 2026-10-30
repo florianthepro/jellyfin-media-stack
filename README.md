@@ -1,3 +1,5 @@
+`@import url("https://cdn.jsdelivr.net/gh/florianthepro/simple.css@main/simple.css");`
+
 # Jellyfin Media Stack
 
 Einfacher Docker-Stack für Jellyfin, qBittorrent, Sonarr, Radarr, Prowlarr und Seerr.
