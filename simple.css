@@ -1,27 +1,61 @@
+/* =========================================================
+   JELLYFIN 12.4
+   MOBILE HOMEPAGE + HEADER-NAVIGATION
+   ========================================================= */
+
+
+/* =========================================================
+   STARTSEITE
+   ========================================================= */
+
 /* Kürzlich hinzugefügte Filme und Serien ausblenden */
 .section6 {
     display: none !important;
 }
 
 /* Überschrift über Filme und Serien ausblenden */
-.section0 .sectionTitle {
+.section0 .sectionTitle,
+.section0 .sectionTitleContainer {
     display: none !important;
 }
 
 /* Überschrift und Pfeil von "Als Nächstes" ausblenden */
+.section5 .sectionTitle,
 .section5 .sectionTitleContainer {
     display: none !important;
 }
 
+
+/* =========================================================
+   MOBILES STARTSEITENLAYOUT
+   ========================================================= */
+
 @media (max-width: 700px) {
+
     /* Filme und Serien untereinander */
+    .section0 {
+        box-sizing: border-box !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        max-height: none !important;
+        margin: 0 0 28px !important;
+        padding: 0 14px !important;
+        overflow: visible !important;
+    }
+
+    .section0 .emby-scroller,
     .section0 .itemsContainer,
-    .section0 .emby-scroller {
+    .section0 .scrollSlider {
         display: grid !important;
         grid-template-columns: minmax(0, 1fr) !important;
         gap: 14px !important;
+        box-sizing: border-box !important;
         width: 100% !important;
         max-width: 100% !important;
+        height: auto !important;
+        max-height: none !important;
+        margin: 0 !important;
         padding: 0 !important;
         overflow: visible !important;
         transform: none !important;
@@ -29,10 +63,13 @@
 
     .section0 .card,
     .section0 .cardBox {
+        display: block !important;
+        box-sizing: border-box !important;
         width: 100% !important;
         min-width: 0 !important;
-        max-width: none !important;
+        max-width: 100% !important;
         margin: 0 !important;
+        padding: 0 !important;
     }
 
     .section0 .cardScalable {
@@ -40,26 +77,37 @@
         aspect-ratio: 16 / 9 !important;
     }
 
-    /* "Als Nächstes" genauso groß und untereinander */
+    /* Beschriftung unter Filme und Serien entfernen */
+    .section0 .cardText,
+    .section0 .cardText-secondary,
+    .section0 .cardFooter {
+        display: none !important;
+    }
+
+    /* Als-Nächstes-Karten gleich groß und untereinander */
     .section5 {
         box-sizing: border-box !important;
         width: 100% !important;
         max-width: 100% !important;
         height: auto !important;
         max-height: none !important;
-        margin-bottom: 24px !important;
-        padding-right: 14px !important;
-        padding-left: 14px !important;
+        margin: 0 0 24px !important;
+        padding: 0 14px !important;
         overflow: visible !important;
     }
 
     .section5 .emby-scroller,
-    .section5 .itemsContainer {
+    .section5 .itemsContainer,
+    .section5 .scrollSlider {
         display: grid !important;
         grid-template-columns: minmax(0, 1fr) !important;
         gap: 14px !important;
+        box-sizing: border-box !important;
         width: 100% !important;
         max-width: 100% !important;
+        height: auto !important;
+        max-height: none !important;
+        margin: 0 !important;
         padding: 0 !important;
         overflow: visible !important;
         transform: none !important;
@@ -67,10 +115,13 @@
 
     .section5 .card,
     .section5 .cardBox {
+        display: block !important;
+        box-sizing: border-box !important;
         width: 100% !important;
         min-width: 0 !important;
-        max-width: none !important;
+        max-width: 100% !important;
         margin: 0 !important;
+        padding: 0 !important;
     }
 
     .section5 .cardScalable {
@@ -78,72 +129,343 @@
         aspect-ratio: 16 / 9 !important;
     }
 
+    /* Horizontale Scrollpfeile ausblenden */
     .section0 .emby-scrollbuttons,
     .section5 .emby-scrollbuttons {
         display: none !important;
     }
+
+    /* Normalen vertikalen Seiten-Scroll sicherstellen */
+    .section0,
+    .section5,
+    .section0 *,
+    .section5 * {
+        max-height: none;
+    }
 }
-/* unknown */
-/* Handy: Seitenmenü und Burger-Button vollständig entfernen */
+
+
+/* =========================================================
+   MOBILE HEADER-NAVIGATION
+   Startseite, Favoriten, Filme, Serien
+   ========================================================= */
+
 @media (max-width: 700px) {
-    .mainDrawer,
-    .mainDrawerHandle,
-    .mainDrawer-shown,
-    .mainDrawer-open,
-    body > .mainDrawer {
-        display: none !important;
-        visibility: hidden !important;
-        position: absolute !important;
-        left: -9999px !important;
-        width: 0 !important;
-        min-width: 0 !important;
-        max-width: 0 !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
+
+    /* Zusätzlichen Abstand früherer Versionen entfernen */
+    body {
+        padding-top: 0 !important;
     }
 
-    .headerMenuButton,
-    .headerButtonLeft,
-    .headerButton.headerButtonLeft,
-    .headerTop .headerMenuButton,
-    button.headerMenuButton,
-    button[is="paper-icon-button-light"].headerMenuButton,
-    button[title*="Menü"],
-    button[aria-label*="Menü"],
-    button[title*="Menu"],
-    button[aria-label*="Menu"] {
+    main {
+        margin-left: 0 !important;
+        padding-top: 0 !important;
+    }
+
+    /* Vorhandene 48px-Jellyfin-Kopfleiste erhalten */
+    header.MuiPaper-root {
+        display: block !important;
+        visibility: visible !important;
+        position: relative !important;
+        min-height: 48px !important;
+        height: 48px !important;
+        opacity: 1 !important;
+        overflow: visible !important;
+    }
+
+    header.MuiPaper-root > div {
+        box-sizing: border-box !important;
+        min-height: 48px !important;
+        height: 48px !important;
+        padding-left: 148px !important;
+    }
+
+    /* Burger entfernen */
+    button[aria-label="Menü öffnen"],
+    button[aria-label="Menu öffnen"],
+    button[aria-label="Open menu"],
+    button:has(svg[data-testid="MenuIcon"]) {
         display: none !important;
         visibility: hidden !important;
         position: absolute !important;
-        left: -9999px !important;
         width: 0 !important;
         min-width: 0 !important;
         max-width: 0 !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        max-height: 0 !important;
         margin: 0 !important;
         padding: 0 !important;
         opacity: 0 !important;
         pointer-events: none !important;
+        overflow: hidden !important;
     }
 
-    .mainDrawerHandle {
-        touch-action: none !important;
+    /* Gesamten seitlichen MUI-Drawer unsichtbar machen */
+    .MuiDrawer-root,
+    .MuiDrawer-paper {
+        display: block !important;
+        visibility: hidden !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        max-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        overflow: visible !important;
+        opacity: 0 !important;
+        transform: none !important;
+        pointer-events: none !important;
     }
 
-    .headerLeft {
-        margin-left: 0 !important;
-        padding-left: 0 !important;
+    /* Drawer-Overlay komplett entfernen */
+    .MuiBackdrop-root,
+    .MuiModal-backdrop {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
     }
 
-    .headerTop {
-        padding-left: max(10px, env(safe-area-inset-left)) !important;
+    /* Drawer darf die Seite nach einem Klick nicht blockieren */
+    .MuiModal-root:has(.MuiDrawer-paper) {
+        position: static !important;
+        width: 0 !important;
+        height: 0 !important;
+        overflow: visible !important;
+        pointer-events: none !important;
     }
 
-    #indexPage,
-    #homeTab,
-    .page,
-    .pageTabContent {
-        margin-left: 0 !important;
-        width: 100% !important;
-        max-width: 100% !important;
+    /* Sämtliche Drawer-Inhalte standardmäßig verstecken */
+    .MuiDrawer-paper > *,
+    .MuiDrawer-paper li,
+    .MuiDrawer-paper a,
+    .MuiDrawer-paper hr,
+    .MuiDrawer-paper ul,
+    .MuiDrawer-paper [role="presentation"] {
+        visibility: hidden !important;
+        pointer-events: none !important;
+    }
+
+    /* Listen dürfen die fixierten Buttons nicht abschneiden */
+    .MuiDrawer-paper ul {
+        display: block !important;
+        position: static !important;
+        width: 0 !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+    }
+
+    /* =====================================================
+       VIER NAVIGATIONSEINTRÄGE WIEDER SICHTBAR MACHEN
+       ===================================================== */
+
+    /* Startseite */
+    li:has(> a[href="#/home"]),
+    li:has(> a[href$="/web/#/home"]) {
+        display: block !important;
+        visibility: visible !important;
+        position: fixed !important;
+        top: env(safe-area-inset-top) !important;
+        left: 4px !important;
+        z-index: 100000 !important;
+        width: 36px !important;
+        min-width: 36px !important;
+        max-width: 36px !important;
+        height: 48px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+
+    /* Favoriten */
+    li:has(> a[href*="#/home?tab=1"]) {
+        display: block !important;
+        visibility: visible !important;
+        position: fixed !important;
+        top: env(safe-area-inset-top) !important;
+        left: 40px !important;
+        z-index: 100000 !important;
+        width: 36px !important;
+        min-width: 36px !important;
+        max-width: 36px !important;
+        height: 48px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+
+    /* Filme */
+    li:has(
+        > a[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
+    ) {
+        display: block !important;
+        visibility: visible !important;
+        position: fixed !important;
+        top: env(safe-area-inset-top) !important;
+        left: 76px !important;
+        z-index: 100000 !important;
+        width: 36px !important;
+        min-width: 36px !important;
+        max-width: 36px !important;
+        height: 48px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+
+    /* Serien */
+    li:has(
+        > a[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
+    ) {
+        display: block !important;
+        visibility: visible !important;
+        position: fixed !important;
+        top: env(safe-area-inset-top) !important;
+        left: 112px !important;
+        z-index: 100000 !important;
+        width: 36px !important;
+        min-width: 36px !important;
+        max-width: 36px !important;
+        height: 48px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+
+    /* Gemeinsames Linkdesign */
+    li:has(> a[href="#/home"]) > a,
+    li:has(> a[href$="/web/#/home"]) > a,
+    li:has(> a[href*="#/home?tab=1"]) > a,
+    li:has(
+        > a[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
+    ) > a,
+    li:has(
+        > a[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
+    ) > a {
+        display: flex !important;
+        visibility: visible !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-sizing: border-box !important;
+        width: 36px !important;
+        min-width: 36px !important;
+        max-width: 36px !important;
+        height: 48px !important;
+        min-height: 48px !important;
+        max-height: 48px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        gap: 0 !important;
+        color: rgba(255, 255, 255, 0.72) !important;
+        background: transparent !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        opacity: 1 !important;
+        overflow: visible !important;
+        transform: none !important;
+        text-decoration: none !important;
+        pointer-events: auto !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        -webkit-tap-highlight-color: transparent !important;
+    }
+
+    /* Beschriftungen ausblenden */
+    li:has(> a[href="#/home"]) .MuiListItemText-root,
+    li:has(> a[href$="/web/#/home"]) .MuiListItemText-root,
+    li:has(> a[href*="#/home?tab=1"]) .MuiListItemText-root,
+    li:has(
+        > a[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
+    ) .MuiListItemText-root,
+    li:has(
+        > a[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
+    ) .MuiListItemText-root {
+        display: none !important;
+    }
+
+    /* Iconcontainer */
+    li:has(> a[href="#/home"]) .MuiListItemIcon-root,
+    li:has(> a[href$="/web/#/home"]) .MuiListItemIcon-root,
+    li:has(> a[href*="#/home?tab=1"]) .MuiListItemIcon-root,
+    li:has(
+        > a[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
+    ) .MuiListItemIcon-root,
+    li:has(
+        > a[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
+    ) .MuiListItemIcon-root {
+        display: inline-flex !important;
+        visibility: visible !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex: 0 0 22px !important;
+        width: 22px !important;
+        min-width: 22px !important;
+        max-width: 22px !important;
+        height: 22px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        color: inherit !important;
+        opacity: 1 !important;
+        pointer-events: none !important;
+    }
+
+    /* Icongröße */
+    li:has(> a[href="#/home"]) svg,
+    li:has(> a[href$="/web/#/home"]) svg,
+    li:has(> a[href*="#/home?tab=1"]) svg,
+    li:has(
+        > a[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
+    ) svg,
+    li:has(
+        > a[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
+    ) svg {
+        display: block !important;
+        visibility: visible !important;
+        width: 22px !important;
+        min-width: 22px !important;
+        height: 22px !important;
+        color: inherit !important;
+        opacity: 1 !important;
+    }
+
+    /* Aktiver Eintrag lediglich farblich */
+    li > a.Mui-selected,
+    li > a[aria-current="page"] {
+        color: var(--jf-palette-primary-main, #00a4dc) !important;
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
+    /* Touch-Rückmeldung */
+    li:has(> a[href="#/home"]) > a:active,
+    li:has(> a[href$="/web/#/home"]) > a:active,
+    li:has(> a[href*="#/home?tab=1"]) > a:active,
+    li:has(
+        > a[href*="topParentId=7a2175bccb1f1a94152cbd2b2bae8f6d"]
+    ) > a:active,
+    li:has(
+        > a[href*="topParentId=43cfe12fe7d9d8d21251e0964e0232e2"]
+    ) > a:active {
+        color: #fff !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+        transform: scale(0.9) !important;
     }
 }
