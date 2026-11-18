@@ -33,7 +33,7 @@ services:
     image: ghcr.io/iptv-org/epg:master
     container_name: iptv-epg
     environment: {TZ: "${TZ}", CRON_SCHEDULE: "30 2 * * *", DAYS: "7", RUN_AT_STARTUP: "true"}
-    volumes: ["./data/iptv-epg/public:/epg/public", "${MEDIA}/jellyfin/livetv/channels.xml:/epg/channels.xml:ro"]
+    volumes: ["./data/iptv-epg/public:/epg/public", "${IPTV_CHANNELS_XML}:/epg/channels.xml:ro"]
     restart: unless-stopped
 
   iptv-epg-arte:
