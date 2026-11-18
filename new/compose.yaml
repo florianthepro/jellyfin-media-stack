@@ -8,6 +8,7 @@ services:
       - "./config/portainer:/data"
     restart: always
   cloudflared:
+    profiles: [always-active]
     image: cloudflare/cloudflared:latest
     container_name: cloudflared-jfms
     command: ["tunnel", "--no-autoupdate", "run", "--token", "${CLOUDFLARE_API_KEY}"]
@@ -35,6 +36,7 @@ services:
     restart: unless-stopped
   iptv-epg:
     image: ghcr.io/iptv-org/epg:master
+    profiles: [disabled]
     container_name: iptv-epg
     environment: {TZ: "${TZ}", CRON_SCHEDULE: "30 2 * * *", DAYS: "7", RUN_AT_STARTUP: "true"}
     volumes:
