@@ -49,5 +49,5 @@ services:
     environment: {TZ: "${TZ}", CRON_SCHEDULE: "30 3 * * *", DAYS: "7", RUN_AT_STARTUP: "true"}
     volumes:
       - "./data/iptv-epg-arte/public:/epg/public"
-      - "${MEDIA}/jellyfin/livetv/channels-arte.xml:/epg/channels.xml:ro"
+      - "${IPTV_ARTE_CHANNELS_XML}:/epg/channels.xml:ro"
     restart: unless-stopped
