@@ -1,114 +1,45 @@
 name: jellyfin-media-stack
 
 services:
+
+  portainer:
+    image: portainer/portainer-ce:lts
+    container_name: portainer
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock", "/opt/jfms/data/portainer:/data"]
+    restart: always
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared-jfms
+    command: ["tunnel", "--no-autoupdate", "run", "--token", "${CLOUDFLARE_API_KEY}"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    restart: always
+
   jellyfin:
     image: jellyfin/jellyfin:latest
     container_name: jellyfin
-    environment:
-      TZ: "${TZ}"
-    volumes:
-      - "/opt/jfms/data/jellyfin/config:/config"
-      - "/opt/jfms/data/jellyfin/cache:/cache"
-      - "${MEDIA}:/media"
-    networks:
-      - jfms_net
+    environment: {TZ: "${TZ}"}
+    volumes: ["/opt/jfms/data/jellyfin/config:/config", "/opt/jfms/data/jellyfin/cache:/cache", "${MEDIA}:/media"]
     restart: unless-stopped
 
   tdarr:
     image: ghcr.io/haveagitgat/tdarr:latest
     container_name: tdarr
-    environment:
-      TZ: "${TZ}"
-      PUID: "${PUID}"
-      PGID: "${PGID}"
-      serverIP: "0.0.0.0"
-      serverPort: "8266"
-      webUIPort: "8265"
-      internalNode: "true"
-      inContainer: "true"
-      auth: "true"
-      apiKey: "${TDARR_API_KEY}"
-    volumes:
-      - "/opt/jfms/data/tdarr/server:/app/server"
-      - "/opt/jfms/data/tdarr/configs:/app/configs"
-      - "/opt/jfms/data/tdarr/logs:/app/logs"
-      - "/opt/jfms/data/tdarr/temp:/temp"
-      - "${MEDIA}:/media"
-    networks:
-      - jfms_net
+    environment: {TZ: "${TZ}", PUID: "${PUID}", PGID: "${PGID}", serverIP: "0.0.0.0", serverPort: "8266", webUIPort: "8265", internalNode: "true", inContainer: "true", auth: "true", apiKey: "${TDARR_API_KEY}"}
+    volumes: ["/opt/jfms/data/tdarr/server:/app/server", "/opt/jfms/data/tdarr/configs:/app/configs", "/opt/jfms/data/tdarr/logs:/app/logs", "/opt/jfms/data/tdarr/temp:/temp", "${MEDIA}:/media"]
     restart: unless-stopped
 
   iptv-epg:
     image: ghcr.io/iptv-org/epg:master
     container_name: iptv-epg
-    environment:
-      TZ: "${TZ}"
-      CRON_SCHEDULE: "30 2 * * *"
-      DAYS: "7"
-      RUN_AT_STARTUP: "false"
-    volumes:
-      - "/opt/jfms/data/iptv-epg/public:/epg/public"
-      - "${MEDIA}/jellyfin/livetv/channels.xml:/epg/channels.xml:ro"
-    networks:
-      - jfms_net
+    environment: {TZ: "${TZ}", CRON_SCHEDULE: "30 2 * * *", DAYS: "7", RUN_AT_STARTUP: "false"}
+    volumes: ["/opt/jfms/data/iptv-epg/public:/epg/public", "${MEDIA}/jellyfin/livetv/channels.xml:/epg/channels.xml:ro"]
     restart: unless-stopped
 
   iptv-epg-arte:
     image: ghcr.io/iptv-org/epg:master
     container_name: iptv-epg-arte
-    environment:
-      TZ: "${TZ}"
-      CRON_SCHEDULE: "30 3 * * *"
-      DAYS: "7"
-      RUN_AT_STARTUP: "true"
-    volumes:
-      - "/opt/jfms/data/iptv-epg-arte/public:/epg/public"
-      - "${MEDIA}/jellyfin/livetv/channels-arte.xml:/epg/channels.xml:ro"
-    networks:
-      - jfms_net
+    environment: {TZ: "${TZ}", CRON_SCHEDULE: "30 3 * * *", DAYS: "7", RUN_AT_STARTUP: "true"}
+    volumes: ["/opt/jfms/data/iptv-epg-arte/public:/epg/public", "${MEDIA}/jellyfin/livetv/channels-arte.xml:/epg/channels.xml:ro"]
+
     restart: unless-stopped
-
-  portainer:
-    image: portainer/portainer-ce:lts
-    container_name: portainer
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock"
-      - "/opt/jfms/data/portainer:/data"
-    networks:
-      - jfms_net
-    restart: always
-
-  cloudflared-jfms:
-    image: cloudflare/cloudflared:latest
-    container_name: cloudflared-jfms
-    command:
-      - tunnel
-      - --no-autoupdate
-      - run
-      - --token
-      - "${CLOUDFLARE_JFMS_API_KEY}"
-    networks:
-      - jfms_net
-    restart: unless-stopped
-
-  cloudflared-jfms-ssh:
-    image: cloudflare/cloudflared:latest
-    container_name: cloudflared-jfms-ssh
-    command:
-      - tunnel
-      - --no-autoupdate
-      - run
-      - --token
-      - "${CLOUDFLARE_JFMS_SSH_API_KEY}"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - ssh_net
-    restart: unless-stopped
-
-networks:
-  jfms_net:
-    name: jfms_net
-
-  ssh_net:
-    name: ssh_net
