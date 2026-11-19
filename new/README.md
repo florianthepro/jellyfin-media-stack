@@ -8,7 +8,7 @@ sudo bash -c 'set -Eeuo pipefail; clear; U="${SUDO_USER:-$(logname 2>/dev/null |
 ## commands
 - `sudo nano ~/setup-jfms.sh`
 - `sudo chmod +x ~/setup-jfms.sh`
-- enter [input](setup-jfms.sh) from the bottom
+- paste [input](setup-jfms.sh)
 - `sudo ~/setup-jfms.sh`
 - `sudo rm ~/setup-jfms.sh`
 
@@ -315,6 +315,7 @@ mapfile -t SERVICES < <(
     docker compose \
         --env-file "$ENV_FILE" \
         -f "$COMPOSE" \
+        --profile always-active \
         config --services
 )
 
@@ -331,7 +332,11 @@ docker compose \
 
 section "Always-active-Profil starten"
 
-if printf '%s\n' "${SERVICES[@]}" |
+if docker compose \
+    --env-file "$ENV_FILE" \
+    -f "$COMPOSE" \
+    --profile always-active \
+    config --services |
     grep -Fxq "$COMPOSE_SERVICE_ALWAYS"
 then
     docker compose \
@@ -372,3 +377,4 @@ echo "Medien:        $MEDIA"
 echo
 echo "Cloudflared wurde separat über das Profil always-active gestartet."
 echo "Anschließend wurden alle profilfreien Standarddienste gestartet."
+```
