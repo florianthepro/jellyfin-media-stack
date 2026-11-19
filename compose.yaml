@@ -10,7 +10,7 @@ services:
   cloudflared:
     profiles: [always-active]
     image: cloudflare/cloudflared:latest
-    container_name: cloudflared-jfms
+    container_name: cloudflared
     command: ["tunnel", "--no-autoupdate", "run", "--token", "${CLOUDFLARE_API_KEY}"]
     extra_hosts: ["host.docker.internal:host-gateway"]
     restart: always
@@ -44,12 +44,4 @@ services:
     volumes:
       - "./data/iptv-epg/public:/epg/public"
       - "${IPTV_CHANNELS_XML}:/epg/channels.xml:ro"
-    restart: unless-stopped
-  iptv-epg-arte:
-    image: ghcr.io/iptv-org/epg:master
-    container_name: iptv-epg-arte
-    environment: {TZ: "${TZ}", CRON_SCHEDULE: "30 3 * * *", DAYS: "7", RUN_AT_STARTUP: "true"}
-    volumes:
-      - "./data/iptv-epg-arte/public:/epg/public"
-      - "${IPTV_ARTE_CHANNELS_XML}:/epg/channels.xml:ro"
     restart: unless-stopped
