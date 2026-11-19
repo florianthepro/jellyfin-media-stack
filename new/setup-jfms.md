@@ -4,7 +4,7 @@
 ```
 cd ~ && sudo nano setup-jfms.sh && sudo chmod + x .\setup-jfms.sh && sudo setup-jfms.sh
 ```
-enter [input] from the bottom than follow commands below
+enter [input](input) from the bottom than follow commands below
 ```
 cd ~ && sudo rm setup-jfms.sh
 ```
