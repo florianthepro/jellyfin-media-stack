@@ -2,7 +2,14 @@
 set -Eeuo pipefail
 
 clear
-
+cat <<'EOF'
+#### #### #... #... #..# #### #### #..#   #..# #### ###. #### .##.   .### #### .##. .### #..#
+...# #... #... #... #..# #... .##. ##.#   ##.# #... #..# .##. #..#   #... .##. #..# #... #.#.
+...# ###. #... #... .##. ###. .##. #.##   #.## ###. #..# .##. ####   .### .##. #### #... ##..
+#..# #... #... #... ..#. #... .##. #..#   #..# #... #..# .##. #..#   ...# .##. #..# #... #.#.
+.##. #### #### #### ..#. #... #### #..#   #..# #### ###. #### #..#   ###. .##. #..# .### #..#
+EOF
+echo "v2"
 NAME="jellyfin-media-stack"
 DEFAULT_ROOT="/opt/jfms"
 COMPOSE_SERVICE_ALWAYS="cloudflared"
@@ -299,6 +306,7 @@ mapfile -t SERVICES < <(
     docker compose \
         --env-file "$ENV_FILE" \
         -f "$COMPOSE" \
+        --profile always-active \
         config --services
 )
 
@@ -315,7 +323,11 @@ docker compose \
 
 section "Always-active-Profil starten"
 
-if printf '%s\n' "${SERVICES[@]}" |
+if docker compose \
+    --env-file "$ENV_FILE" \
+    -f "$COMPOSE" \
+    --profile always-active \
+    config --services |
     grep -Fxq "$COMPOSE_SERVICE_ALWAYS"
 then
     docker compose \
