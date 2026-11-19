@@ -169,7 +169,8 @@ services:
     volumes:
       - "./config/jellyfin/config:/config"
       - "./data/jellyfin/cache:/cache"
-      - "${MEDIA}:/media"
+      - "${MEDIA}:/media:ro"
+      - "${MEDIA}/jellyfin/livetv/recordings:/media/jellyfin/livetv/recordings:rw"
     restart: unless-stopped
   tdarr:
     image: ghcr.io/haveagitgat/tdarr:latest
@@ -180,7 +181,8 @@ services:
       - "./config/tdarr/configs:/app/configs"
       - "./data/tdarr/logs:/app/logs"
       - "./data/tdarr/temp:/temp"
-      - "${MEDIA}:/media"
+      - "${MEDIA}:/media:ro"
+      - "${MEDIA}/tdarr:/media/tdarr:rw"
     restart: unless-stopped
   iptv-epg:
     image: ghcr.io/iptv-org/epg:master
