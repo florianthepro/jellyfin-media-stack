@@ -11,7 +11,7 @@ rm -f ~/setup-jfms.sh && sudo nano ~/setup-jfms.sh && sudo chmod +x ~/setup-jfms
 ```
 [input](setup-jfms.sh)
 
-[## backup:](/backup)
+## [backup:](/backup)
 ```
 read -rp 'Config-Quellpfad: ' src; src=${src%/}; if [ ! -d "$src" ]; then echo "Ordner nicht gefunden: $src"; exit 1; fi; read -r _ _ server_ip _ <<< "$SSH_CONNECTION"; if [ -z "$server_ip" ]; then echo 'Keine Server-IP aus SSH_CONNECTION gefunden.'; exit 1; fi; d=$(date +%Y%m%d); n=1; name=$(basename "$src"); parent=$(dirname "$src"); f="/tmp/jfms-config-$d-v$n.tar"; while [ -e "$f" ]; do n=$((n+1)); f="/tmp/jfms-config-$d-v$n.tar"; done; if sudo tar --numeric-owner --acls --xattrs -cpf "$f" -C "$parent" "$name" && sudo chown "$(id -u):$(id -g)" "$f" && chmod 600 "$f" && tar -tf "$f" >/dev/null; then echo "Erstellt und geprüft:"; ls -lh "$f"; sha256sum "$f"; printf 'Auf der Zielmaschine ausführen:\nscp "%s@%s:%s" /path/to/destination/\n' "$USER" "$server_ip" "$f"; else echo 'Archiv konnte nicht erfolgreich erstellt und geprüft werden.'; exit 1; fi
 ```
