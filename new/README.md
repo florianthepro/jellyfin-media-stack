@@ -10,7 +10,7 @@ sudo bash -c 'set -Eeuo pipefail; clear; U="${SUDO_USER:-$(logname 2>/dev/null |
 - `sudo chmod +x ~/setup-jfms.sh`
 - enter [input](setup-jfms.sh) from the bottom
 - `sudo ~/setup-jfms.sh`
-- sudo rm ~/setup-jfms.sh
+- `sudo rm ~/setup-jfms.sh`
 
 ### input
 ```
