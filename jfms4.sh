@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# jfms.sh — JFMS Verwaltung
-#   curl -fsSL 'https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/jfms3.sh' | sudo bash
-
 set -Eeuo pipefail
 
-VERSION="v1.1.0"
-SELF_URL="https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/jfms3.sh"
+# NEU: v1.2.0 - Live-Modus, Menüpunkt 1 = install/update
+VERSION="v1.2.0"
+SELF_URL="https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/jfms4.sh"
 
 INSTALL_MENU=/usr/local/sbin/jfms
 INSTALL_RCLONE=/usr/local/sbin/jfms-rclone-setup
@@ -86,7 +84,7 @@ prompt_secret() {
 }
 
 # ============================================================
-# rclone / Internxt
+# rclone / Internxt  (unverändert)
 # ============================================================
 rclone_main() {
     local U G H C M V N UNIT D O
@@ -102,11 +100,7 @@ rclone_main() {
     UNIT=$SVC_RCLONE
     D=/etc/systemd/system/$N.d
     O=$D/override.conf
-
-    step "INTERNXT SETUP"
-    echo "Benutzer: $U"
-    echo "Home:     $H"
-
+    step "INTERNXT SETUP"; echo "Benutzer: $U"; echo "Home:     $H"
     step "1/6 VORAUSSETZUNGEN"
     local -a X=()
     dpkg -s fuse3 >/dev/null 2>&1 || X+=(fuse3)
@@ -117,16 +111,12 @@ rclone_main() {
         apt-get update -qq
         apt-get install -y -qq "${X[@]}" >/tmp/internxt-apt.log 2>&1 \
             || { tail -40 /tmp/internxt-apt.log; fail "Paketinstallation fehlgeschlagen"; }
-    else
-        echo "Pakete: OK"
-    fi
+    else echo "Pakete: OK"; fi
     test -e /dev/fuse || fail "/dev/fuse fehlt"
-    if version_ok; then
-        echo "rclone: $(rclone version | head -1), Internxt-kompatibel"
+    if version_ok; then echo "rclone: $(rclone version | head -1), Internxt-kompatibel"
     else
         echo "rclone fehlt oder < v1.73.0, installiere aktuelle Version"
-        curl -fsSL https://rclone.org/install.sh -o /tmp/rclone-install.sh \
-            || fail "Installer konnte nicht geladen werden"
+        curl -fsSL https://rclone.org/install.sh -o /tmp/rclone-install.sh || fail "Installer konnte nicht geladen werden"
         bash /tmp/rclone-install.sh >/tmp/rclone-install.log 2>&1 || true
         rm -f /tmp/rclone-install.sh
         version_ok || { tail -40 /tmp/rclone-install.log 2>/dev/null || true; fail "Keine Internxt-kompatible rclone-Version installiert"; }
@@ -136,61 +126,41 @@ rclone_main() {
     grep -qxF user_allow_other /etc/fuse.conf || { echo user_allow_other >>/etc/fuse.conf; echo "FUSE: user_allow_other ergänzt"; }
     install -d -o "$U" -g "$G" -m 0700 "$(dirname "$C")"
     install -d -o "$U" -g "$G" -m 0750 "$V"
-
     step "2/6 INTERNXT-REMOTE"
     if ! test -s "$C" || ! timeout 15 sudo -u "$U" -H rclone --config "$C" listremotes 2>/dev/null | grep -Fxq "internxt:"; then
         echo "Remote internxt fehlt. Interaktive Einrichtung startet."
         echo "Remote bitte exakt 'internxt' nennen."
         sudo -u "$U" -H rclone --config "$C" config
     fi
-    timeout 15 sudo -u "$U" -H rclone --config "$C" listremotes 2>/dev/null | grep -Fxq "internxt:" \
-        || fail "Remote internxt fehlt"
-    chown "$U:$G" "$C"; chmod 600 "$C"
-    echo "Remote internxt: OK"
-
+    timeout 15 sudo -u "$U" -H rclone --config "$C" listremotes 2>/dev/null | grep -Fxq "internxt:" || fail "Remote internxt fehlt"
+    chown "$U:$G" "$C"; chmod 600 "$C"; echo "Remote internxt: OK"
     step "3/6 SYSTEMD"
     local T Q
     T=$(mktemp); Q=$(mktemp)
     trap 'rm -f "$T" "$Q" /tmp/internxt-apt.log /tmp/rclone-install.log /tmp/internxt-verify.log' EXIT
     printf '%s\n' \
-        "[Unit]" \
-        "Description=Internxt rclone mount for $U" \
-        "Wants=network-online.target" \
-        "After=network-online.target" \
-        "Before=docker.service" \
-        "RequiresMountsFor=/mnt" \
-        "" \
-        "[Service]" \
-        "Type=notify" \
-        "User=$U" \
-        "Group=$G" \
+        "[Unit]" "Description=Internxt rclone mount for $U" \
+        "Wants=network-online.target" "After=network-online.target" \
+        "Before=docker.service" "RequiresMountsFor=/mnt" "" \
+        "[Service]" "Type=notify" "User=$U" "Group=$G" \
         "ExecStart=/usr/bin/rclone mount internxt:media /mnt/internxt --config=$C --cache-dir=$V --vfs-cache-mode=full --vfs-cache-max-age=5m --vfs-cache-max-size=5G --dir-cache-time=1m --buffer-size=16M --allow-other --default-permissions --umask=002 --log-level=INFO" \
-        "ExecStop=/bin/fusermount3 -uz /mnt/internxt" \
-        "Restart=on-failure" \
-        "RestartSec=10" \
-        "TimeoutStartSec=90" \
-        "TimeoutStopSec=30" \
-        "KillMode=mixed" \
-        "" \
-        "[Install]" \
-        "WantedBy=multi-user.target" > "$T"
+        "ExecStop=/bin/fusermount3 -uz /mnt/internxt" "Restart=on-failure" \
+        "RestartSec=10" "TimeoutStartSec=90" "TimeoutStopSec=30" "KillMode=mixed" "" \
+        "[Install]" "WantedBy=multi-user.target" > "$T"
     printf '%s\n' \
-        "[Service]" \
-        "MemoryLow=128M" \
-        "MemoryHigh=512M" \
-        "MemoryMax=768M" \
-        "MemorySwapMax=256M" \
-        "CPUWeight=100" > "$Q"
+        "[Service]" "MemoryLow=128M" "MemoryHigh=512M" "MemoryMax=768M" \
+        "MemorySwapMax=256M" "CPUWeight=100" > "$Q"
     local Z=0
-    if test -f "$UNIT" && cmp -s "$T" "$UNIT"; then echo "Dienstdatei: korrekt"; else install -o root -g root -m 0644 "$T" "$UNIT"; Z=1; echo "Dienstdatei: korrigiert"; fi
+    if test -f "$UNIT" && cmp -s "$T" "$UNIT"; then echo "Dienstdatei: korrekt"
+    else install -o root -g root -m 0644 "$T" "$UNIT"; Z=1; echo "Dienstdatei: korrigiert"; fi
     install -d -m 0755 "$D"
-    if test -f "$O" && cmp -s "$Q" "$O"; then echo "Ressourcenlimits: korrekt"; else install -o root -g root -m 0644 "$Q" "$O"; Z=1; echo "Ressourcenlimits: korrigiert"; fi
+    if test -f "$O" && cmp -s "$Q" "$O"; then echo "Ressourcenlimits: korrekt"
+    else install -o root -g root -m 0644 "$Q" "$O"; Z=1; echo "Ressourcenlimits: korrigiert"; fi
     timeout 15 systemctl daemon-reload || fail "daemon-reload fehlgeschlagen"
     timeout 15 systemd-analyze verify "$UNIT" >/tmp/internxt-verify.log 2>&1 \
         || { cat /tmp/internxt-verify.log; fail "Systemd-Konfiguration ungültig"; }
     timeout 15 systemctl enable "$N" >/dev/null 2>&1 || fail "Dienst konnte nicht aktiviert werden"
     systemctl reset-failed "$N" 2>/dev/null || true
-
     step "4/6 MOUNT PRÜFEN"
     if rclone_healthy "$U" "$M" "$N"; then
         echo "Mount: gesund, kein Neustart"
@@ -223,7 +193,6 @@ rclone_main() {
         test "$K" -eq 1 || { journalctl -u "$N" -n 40 --no-pager -o cat; fail "Mount nicht erreichbar"; }
         echo "Mount: repariert"
     fi
-
     step "6/6 ERGEBNIS"
     rclone_healthy "$U" "$M" "$N" || fail "Abschlussprüfung fehlgeschlagen"
     echo "Status:   ERFOLG"
@@ -235,7 +204,7 @@ rclone_main() {
 }
 
 # ============================================================
-# Jellyfin Media Stack
+# Jellyfin Stack (unverändert)
 # ============================================================
 jellyfin_main() {
     local NAME="jellyfin-media-stack"
@@ -255,25 +224,21 @@ BANNER
     test -n "$CALLING_USER" && test "$CALLING_USER" != root || CALLING_USER="$(logname 2>/dev/null || true)"
     test -n "$CALLING_USER" || fail "Der aufrufende Benutzer konnte nicht ermittelt werden."
     local CALLING_GROUP="$(id -gn "$CALLING_USER")"
-
     section "Docker prüfen"
-    if docker_works; then
-        ok "Docker Engine und Docker Compose funktionieren."
+    if docker_works; then ok "Docker Engine und Docker Compose funktionieren."
     else
         warn "Docker reagiert nicht korrekt. Versuche Neustart."
         systemctl daemon-reload; systemctl reset-failed docker.service 2>/dev/null || true
         systemctl restart docker.service 2>/dev/null || true
         local TRY
         for TRY in $(seq 1 15); do docker_works && break; sleep 2; done
-        if docker_works; then
-            ok "Docker funktioniert nach dem Neustart."
+        if docker_works; then ok "Docker funktioniert nach dem Neustart."
         else
             warn "Docker funktioniert weiterhin nicht. Installation wird repariert."
             install_docker || fail "Docker funktioniert auch nach Neuinstallation nicht."
             ok "Docker wurde erfolgreich installiert bzw. repariert."
         fi
     fi
-
     section "Zielverzeichnis"
     local ROOT
     read -r -p "ROOT [$DEFAULT_ROOT]: " ROOT; ROOT="${ROOT:-$DEFAULT_ROOT}"
@@ -282,7 +247,6 @@ BANNER
     local ENV_FILE_LOCAL="$ROOT/.env"
     install -d -o "$CALLING_USER" -g "$CALLING_GROUP" -m 0755 "$ROOT"
     info "Zielverzeichnis: $ROOT"
-
     section "Compose-Datei erstellen"
     cat > "$COMPOSE" <<'COMPOSE_YAML'
 name: jellyfin-media-stack
@@ -341,9 +305,7 @@ services:
       - "${IPTV_ARTE_CHANNELS_XML}:/epg/channels.xml:ro"
     restart: unless-stopped
 COMPOSE_YAML
-    chown "$CALLING_USER:$CALLING_GROUP" "$COMPOSE"
-    chmod 0640 "$COMPOSE"
-
+    chown "$CALLING_USER:$CALLING_GROUP" "$COMPOSE"; chmod 0640 "$COMPOSE"
     section "Umgebungsvariablen"
     local PUID PGID TZ MEDIA IPTV_CHANNELS_XML IPTV_ARTE_CHANNELS_XML TDARR_API_KEY CLOUDFLARE_API_KEY
     prompt_value PUID "PUID" "1000"
@@ -367,42 +329,34 @@ CLOUDFLARE_API_KEY=$CLOUDFLARE_API_KEY
 ENV
     chown root:root "$ENV_FILE_LOCAL"; chmod 0600 "$ENV_FILE_LOCAL"
     ok ".env wurde unter $ENV_FILE_LOCAL angelegt."
-
     section "Internxt-Mount prüfen"
     mountpoint -q "$MEDIA" || fail "$MEDIA ist nicht als eigener Mount eingebunden."
     timeout --kill-after=2 10 sudo -u "$CALLING_USER" ls -la "$MEDIA" >/dev/null 2>&1 \
         || fail "$MEDIA ist gemountet, reagiert aber nicht korrekt."
     ok "Internxt-Mount ist erreichbar."
-
     section "Compose validieren"
     cd "$ROOT"
-    docker compose --env-file "$ENV_FILE_LOCAL" -f "$COMPOSE" config --quiet \
-        || fail "Die Compose-Datei ist ungültig."
+    docker compose --env-file "$ENV_FILE_LOCAL" -f "$COMPOSE" config --quiet || fail "Die Compose-Datei ist ungültig."
     local -a SERVICES
     mapfile -t SERVICES < <(docker compose --env-file "$ENV_FILE_LOCAL" -f "$COMPOSE" --profile always-active config --services)
     printf 'Services: %s\n' "${SERVICES[*]}"
     ok "Compose-Datei ist gültig."
-
     section "Images laden"
     docker compose --env-file "$ENV_FILE_LOCAL" -f "$COMPOSE" --profile always-active pull
-
     section "Always-active-Profil starten"
     docker compose --env-file "$ENV_FILE_LOCAL" -f "$COMPOSE" --profile always-active config --services \
-        | grep -Fxq "$COMPOSE_SERVICE_ALWAYS" \
-        || fail "Der erwartete Service $COMPOSE_SERVICE_ALWAYS fehlt."
+        | grep -Fxq "$COMPOSE_SERVICE_ALWAYS" || fail "Der erwartete Service $COMPOSE_SERVICE_ALWAYS fehlt."
     docker compose --env-file "$ENV_FILE_LOCAL" -f "$COMPOSE" --profile always-active up -d "$COMPOSE_SERVICE_ALWAYS"
     ok "$COMPOSE_SERVICE_ALWAYS wurde gezielt gestartet."
-
     section "Standarddienste starten"
     docker compose --env-file "$ENV_FILE_LOCAL" -f "$COMPOSE" up -d
-
     section "Ergebnis"
     docker compose --env-file "$ENV_FILE_LOCAL" -f "$COMPOSE" --profile always-active ps -a
     echo; ok "JFMS wurde eingerichtet."
 }
 
 # ============================================================
-# Backup / Restore / Anzeigen
+# Backup / Restore / Anzeigen  (unverändert)
 # ============================================================
 backup_main() {
     exec 9>/run/lock/jfms-backup.lock
@@ -412,8 +366,7 @@ backup_main() {
     mkdir -p "$BACKUP_DIR"
     local OLD_UMASK; OLD_UMASK=$(umask); umask 077
     local D N=1 F
-    D=$(date +%Y%m%d)
-    F="$BACKUP_DIR/jfms-config-$D-v$N.tar"
+    D=$(date +%Y%m%d); F="$BACKUP_DIR/jfms-config-$D-v$N.tar"
     while [[ -e "$F" ]]; do N=$((N+1)); F="$BACKUP_DIR/jfms-config-$D-v$N.tar"; done
     local TMP; TMP=$(mktemp "$BACKUP_DIR/.jfms-config-$D-v$N.XXXXXX")
     trap 'rm -f -- "$TMP" 2>/dev/null || true' EXIT
@@ -431,8 +384,7 @@ backup_main() {
         local RC=$((${#SORTED[@]} - 3)) I
         for ((I=0;I<RC;I++)); do rm -f -- "${SORTED[I]}"; done
     fi
-    echo "Backup: $F"
-    sha256sum "$F" 2>/dev/null || true
+    echo "Backup: $F"; sha256sum "$F" 2>/dev/null || true
     local SIP; SIP=$(awk '{print $1}' <<< "${SSH_CONNECTION:-}" 2>/dev/null || true)
     [[ -n "$SIP" ]] && printf 'scp "%s@%s:%s" /ziel/\n' "${USER:-root}" "$SIP" "$F"
 }
@@ -463,8 +415,7 @@ restore_main() {
                 ((HAD[I]))       && mv -- "${BACKUPS[I]}" "${TARGETS[I]}"
             done
         fi
-        [[ -z "${T:-}" ]] || rm -rf -- "$T"
-        exit "$RC"
+        [[ -z "${T:-}" ]] || rm -rf -- "$T"; exit "$RC"
     }
     trap cleanup_restore EXIT
     tar -tf "$F" > "$T/members" || return 1
@@ -543,7 +494,7 @@ show_latest() {
 }
 
 # ============================================================
-# Service-Installer (Backup / Stack)
+# Service-Installer (unverändert)
 # ============================================================
 install_service() {
     mkdir -p "$BACKUP_DIR"
@@ -575,7 +526,7 @@ uninstall_service() {
     ok "Backup-Service entfernt."
 }
 install_stack_service() {
-    [[ -f "$COMPOSE_FILE" ]] || { warn "Fehlt: $COMPOSE_FILE (erst JFMS-Setup, Punkt 6)."; return 1; }
+    [[ -f "$COMPOSE_FILE" ]] || { warn "Fehlt: $COMPOSE_FILE (erst JFMS-Setup, Punkt 7)."; return 1; }
     local -a ENVARGS=()
     [[ -f "$ENV_FILE" ]] && ENVARGS=(--env-file "$ENV_FILE")
     cat > "$SVC_STACK" <<EOF
@@ -606,11 +557,11 @@ uninstall_stack_service() {
     systemctl disable --now jfms-stack.service 2>/dev/null || true
     rm -f "$SVC_STACK"
     systemctl daemon-reload
-    ok "JFMS-Stack-Service entfernt (Container laufen ggf. noch — 'docker compose down' bei Bedarf)."
+    ok "JFMS-Stack-Service entfernt."
 }
 
 # ============================================================
-# Services-Verwaltung (live-Status)
+# Services-Verwaltung (unverändert)
 # ============================================================
 SVC_NAMES=(jfms-backup rclone-internxt jfms-stack)
 svc_unit() {
@@ -635,7 +586,6 @@ svc_main_file() {
     esac
 }
 svc_exists() { [[ -f "$(svc_main_file "$1")" ]]; }
-
 svc_outdated() {
     local name=$1
     [[ -f "$(svc_main_file "$name")" ]] || return 1
@@ -643,19 +593,15 @@ svc_outdated() {
         jfms-backup)
             [[ -f "$SVC_BACKUP" ]] || return 0
             grep -qF "ExecStart=$INSTALL_BACKUP" "$SVC_BACKUP" || return 0
-            grep -qF 'OnCalendar=' "$SVC_BACKUP_TIMER" || return 0
-            ;;
+            grep -qF 'OnCalendar=' "$SVC_BACKUP_TIMER" || return 0 ;;
         rclone-internxt)
-            grep -qE '^ExecStart=.*/rclone mount internxt:media /mnt/internxt' "$SVC_RCLONE" 2>/dev/null || return 0
-            ;;
+            grep -qE '^ExecStart=.*/rclone mount internxt:media /mnt/internxt' "$SVC_RCLONE" 2>/dev/null || return 0 ;;
         jfms-stack)
             grep -qF "WorkingDirectory=$BACKUP_ROOT" "$SVC_STACK" 2>/dev/null || return 0
-            grep -qF "$COMPOSE_FILE" "$SVC_STACK" 2>/dev/null || return 0
-            ;;
+            grep -qF "$COMPOSE_FILE" "$SVC_STACK" 2>/dev/null || return 0 ;;
     esac
     return 1
 }
-
 svc_line() {
     local name=$1 label main inst="nein" en="-" act="-" state="nicht installiert"
     label=$(svc_label "$name"); main=$(svc_unit "$name")
@@ -667,15 +613,14 @@ svc_line() {
     fi
     printf "%-26s %-11s %-8s %-6s %s\n" "$label" "$inst" "$en" "$act" "$state"
 }
-
 svc_install() {
     case "$1" in
         jfms-backup) install_service ;;
         rclone-internxt)
             if [[ -f "$SVC_RCLONE" ]]; then
-                ok "Bereits vorhanden. Bei Problemen Punkt 5 (rclone-Setup) ausführen."
+                ok "Bereits vorhanden. Bei Problemen Punkt 6 (rclone-Setup) ausführen."
             else
-                warn "Wird durch Punkt 5 (rclone/Internxt Setup) eingerichtet."
+                warn "Wird durch Punkt 6 (rclone/Internxt Setup) eingerichtet."
             fi ;;
         jfms-stack) install_stack_service ;;
     esac
@@ -702,26 +647,20 @@ svc_configure() {
             sed -i "s|^OnCalendar=.*|OnCalendar=$new_t|" "$SVC_BACKUP_TIMER"
             systemctl daemon-reload
             systemctl restart jfms-backup.timer 2>/dev/null || true
-            ok "Zeitplan aktualisiert: $new_t"
-            ;;
+            ok "Zeitplan aktualisiert: $new_t" ;;
         rclone-internxt)
             info "Bearbeite $SVC_RCLONE"
             "${EDITOR:-nano}" "$SVC_RCLONE"
             systemctl daemon-reload
-            systemctl restart rclone-internxt.service || true
-            ;;
+            systemctl restart rclone-internxt.service || true ;;
         jfms-stack)
             if [[ -f "$COMPOSE_FILE" ]]; then
                 info "Bearbeite $COMPOSE_FILE"
                 "${EDITOR:-nano}" "$COMPOSE_FILE"
                 systemctl restart jfms-stack.service || true
-            else
-                warn "Fehlt: $COMPOSE_FILE"
-            fi
-            ;;
+            else warn "Fehlt: $COMPOSE_FILE"; fi ;;
     esac
 }
-
 manage_one_service() {
     local name=$1
     while true; do
@@ -747,22 +686,15 @@ manage_one_service() {
         esac
     done
 }
-
 manage_services() {
     local -a names=(jfms-backup rclone-internxt jfms-stack)
     while true; do
         echo; section "Services verwalten"
         printf "%-26s %-11s %-8s %-6s %s\n" "Service" "Installiert" "Enabled" "Aktiv" "Status"
         local i=1 name
-        for name in "${names[@]}"; do
-            printf "%d) " "$i"
-            svc_line "$name"
-            i=$((i+1))
-        done
-        echo "$i) Alle reparieren/aktualisieren"
-        local opt_all=$i; i=$((i+1))
-        echo "$i) Zurück"
-        local opt_back=$i
+        for name in "${names[@]}"; do printf "%d) " "$i"; svc_line "$name"; i=$((i+1)); done
+        echo "$i) Alle reparieren/aktualisieren"; local opt_all=$i; i=$((i+1))
+        echo "$i) Zurück"; local opt_back=$i
         local C; read -r -p "Auswahl: " C || return 0
         case "$C" in
             1) manage_one_service jfms-backup ;;
@@ -783,8 +715,37 @@ manage_services() {
 }
 
 # ============================================================
-# Update (live)
+# NEU: Update / Install / Live
 # ============================================================
+is_installed() { [[ -f "$INSTALL_MENU" ]]; }
+
+self_install() {
+    local TMP; TMP=$(mktemp)
+    if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]:-}" ]]; then
+        install -m 0755 "${BASH_SOURCE[0]}" "$INSTALL_MENU"
+        rm -f "$TMP"
+    else
+        curl -fsSL "$SELF_URL" -o "$TMP" || { rm -f "$TMP"; fail "Download fehlgeschlagen: $SELF_URL"; }
+        install -m 0755 "$TMP" "$INSTALL_MENU"
+        rm -f "$TMP"
+    fi
+    install_subscripts
+    ok "Installiert: $INSTALL_MENU"
+}
+
+# NEU: Live-Modus - lädt die aktuelle GitHub-Version und führt sie aus,
+# ohne die installierte Datei zu ersetzen.
+run_live() {
+    [[ -n "$SELF_URL" && "$SELF_URL" != *"<user>"* ]] || fail "SELF_URL nicht konfiguriert."
+    info "Lade aktuelle Version live von: $SELF_URL"
+    local TMP; TMP=$(mktemp)
+    curl -fsSL "$SELF_URL" -o "$TMP" || { rm -f "$TMP"; fail "Download fehlgeschlagen."; }
+    chmod 0755 "$TMP"
+    # install_subscripts wird vom geladenen Skript selbst aufgerufen
+    exec bash "$TMP" --live-exec
+}
+
+# NEU: Update prüfen (wenn installiert)
 check_update_available() {
     [[ -z "$SELF_URL" || "$SELF_URL" == *"<user>"* ]] && return 2
     local TMP; TMP=$(mktemp)
@@ -795,30 +756,28 @@ check_update_available() {
     else rm -f "$TMP"; return 0
     fi
 }
-
 do_update() {
     section "Update-Prüfung"
     echo "Lokale Version: $VERSION"
     echo "Remote:         $SELF_URL"
     if [[ "$SELF_URL" == *"<user>"* ]]; then
-        warn "SELF_URL ist nicht konfiguriert (Platzhalter <user>/<repo>)."
+        warn "SELF_URL ist nicht konfiguriert."
         return 1
     fi
     check_update_available
     case $? in
         0)
             info "Update verfügbar. Lade und starte Installation..."
-            curl -fsSL "$SELF_URL" | sudo bash \
-                || fail "Update fehlgeschlagen."
+            curl -fsSL "$SELF_URL" | sudo bash -- --install
             ok "Update abgeschlossen."
             exit 0 ;;
         1) ok "Bereits aktuell ($VERSION)." ;;
-        *) warn "Update-Prüfung nicht möglich (Netzwerk/SELF_URL)." ;;
+        *) warn "Update-Prüfung nicht möglich." ;;
     esac
 }
 
 # ============================================================
-# Sub-Skripte erzeugen
+# Sub-Skripte
 # ============================================================
 emit_script() {
     local OUT=$1 MAIN=$2; shift 2
@@ -842,65 +801,72 @@ install_subscripts() {
 }
 
 # ============================================================
-# Bootstrap
-# ============================================================
-self_install() {
-    local TMP; TMP=$(mktemp)
-    if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]:-}" ]]; then
-        install -m 0755 "${BASH_SOURCE[0]}" "$INSTALL_MENU"
-        rm -f "$TMP"
-    else
-        curl -fsSL "$SELF_URL" -o "$TMP" || { rm -f "$TMP"; fail "Download fehlgeschlagen: $SELF_URL"; }
-        install -m 0755 "$TMP" "$INSTALL_MENU"
-        rm -f "$TMP"
-    fi
-    install_subscripts
-    ok "Installiert: $INSTALL_MENU"
-}
-
-# ============================================================
-# Hauptmenü
+# NEU: Hauptmenü mit Live/Install je Modus
 # ============================================================
 main_menu() {
     [[ $EUID -eq 0 ]] || fail "Bitte mit sudo/root ausführen."
+    local mode_label
+    if is_installed; then mode_label="installiert"; else mode_label="LIVE"; fi
     while true; do
         echo
-        echo "=== JFMS Verwaltung ($VERSION) ==="
-        echo "1) Backup jetzt erstellen"
-        echo "2) Backup wiederherstellen"
-        echo "3) Neuestes Backup anzeigen"
-        echo "4) Services verwalten (install/config/uninstall/status)"
-        echo "5) rclone/Internxt Setup ausführen"
-        echo "6) JFMS Setup ausführen (Jellyfin Stack)"
-        echo "7) Update prüfen / installieren"
-        echo "8) Beenden"
-        local C; read -r -p "Auswahl [8]: " C || exit 0
-        case "${C:-8}" in
-            1) backup_main     || true ;;
-            2) restore_main    || true ;;
-            3) show_latest     || true ;;
-            4) manage_services || true ;;
-            5) "$INSTALL_RCLONE" || true ;;
-            6) "$INSTALL_JFMS"   || true ;;
-            7) do_update ;;
-            8) exit 0 ;;
+        echo "=== JFMS Verwaltung ($VERSION) [$mode_label] ==="
+        echo
+        if [[ "$mode_label" == "LIVE" ]]; then
+            echo "1) Lokal installieren (dauerhaft einrichten)"
+        else
+            echo "1) Update prüfen / neu installieren"
+        fi
+        echo "2) Backup jetzt erstellen"
+        echo "3) Backup wiederherstellen"
+        echo "4) Neuestes Backup anzeigen"
+        echo "5) Services verwalten (install/config/uninstall/status)"
+        echo "6) rclone/Internxt Setup ausführen"
+        echo "7) JFMS Setup ausführen (Jellyfin Stack)"
+        echo "8) Live-Modus ausführen (frische Version von GitHub)"
+        echo "9) Beenden"
+        local C; read -r -p "Auswahl [9]: " C || exit 0
+        case "${C:-9}" in
+            1)
+                if [[ "$mode_label" == "LIVE" ]]; then
+                    self_install
+                    exec "$INSTALL_MENU" "$@"
+                else
+                    do_update
+                fi ;;
+            2) backup_main     || true ;;
+            3) restore_main    || true ;;
+            4) show_latest     || true ;;
+            5) manage_services || true ;;
+            6) "$INSTALL_RCLONE" || true ;;
+            7) "$INSTALL_JFMS"   || true ;;
+            8) run_live ;;
+            9) exit 0 ;;
             *) echo "Ungültig" ;;
         esac
     done
 }
 
 # ============================================================
-# Einstieg
+# NEU: Einstieg mit --install / --live / --live-exec / --backup-only
 # ============================================================
 case "${1:-}" in
     --backup-only) backup_main; exit $? ;;
+    --install)     self_install; exec "$INSTALL_MENU" "${@:2}" ;;
+    --live)        run_live ;;
+    --live-exec)   # interner Modus: wir wurden von run_live gestartet
+                   install_subscripts
+                   main_menu "${@:2}" ;;
 esac
 
+# Standardverhalten:
+# - wenn über /usr/local/sbin/jfms gestartet: installiertes Menü
+# - sonst (curl | bash oder /tmp/jfms3.sh): LIVE ohne Installation des Menü-Skripts
 SELF_PATH="$(readlink -f "${BASH_SOURCE[0]:-/dev/null}" 2>/dev/null || echo "")"
-if [[ "$SELF_PATH" != "$INSTALL_MENU" ]]; then
-    echo "Bootstrap: installiere nach $INSTALL_MENU ..."
-    self_install
-    exec "$INSTALL_MENU" "$@"
+if [[ "$SELF_PATH" == "$INSTALL_MENU" ]]; then
+    install_subscripts
+    main_menu "$@"
+else
+    info "Live-Modus: Menü-Skript wird NICHT installiert (Punkt 1 zum Installieren)."
+    install_subscripts
+    main_menu "$@"
 fi
-
-main_menu "$@"
