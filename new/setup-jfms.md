@@ -1,4 +1,4 @@
-(# Setup Jellyfin Media Stack)[https://123.com](test)
+# Setup Jellyfin Media Stack
 
 ## command
 ```
