@@ -1,0 +1,32 @@
+===== rclone-internxt.service ===== /etc/systemd/system/rclone-internxt.service
+[Unit]
+Description=Internxt rclone mount for tcsoc
+Wants=network-online.target
+After=network-online.target
+Before=docker.service
+RequiresMountsFor=/mnt
+
+[Service]
+Type=notify
+User=tcsoc
+Group=tcsoc
+ExecStart=/usr/bin/rclone mount internxt:media /mnt/internxt --config=/home/tcsoc/.config/rclone/rclone.conf --cache-dir=/var/cache/rclone-internxt --vfs-cache-mode=full --vfs-cache-max-age=5m --vfs-cache-max-size=5G --dir-cache-time=1m --buffer-size=16M --allow-other --default-permissions --umask=002 --log-level=INFO
+ExecStop=/bin/fusermount3 -uz /mnt/internxt
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=90
+TimeoutStopSec=30
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target
+
+===== override.conf ===== /etc/systemd/system/rclone-internxt.service.d/override.conf
+[Service]
+MemoryLow=128M
+MemoryHigh=512M
+MemoryMax=768M
+MemorySwapMax=256M
+CPUWeight=100
+
+===== compose.yaml =====
