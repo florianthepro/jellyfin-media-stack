@@ -17,3 +17,90 @@ rm -f ~/setup-jfms.sh && sudo nano ~/setup-jfms.sh && sudo chmod +x ~/setup-jfms
 ```
 read -rp 'Config-Quellpfad: ' src; src=${src%/}; if [ ! -d "$src" ]; then echo "Ordner nicht gefunden: $src"; exit 1; fi; read -r _ _ server_ip _ <<< "$SSH_CONNECTION"; if [ -z "$server_ip" ]; then echo 'Keine Server-IP aus SSH_CONNECTION gefunden.'; exit 1; fi; d=$(date +%Y%m%d); n=1; name=$(basename "$src"); parent=$(dirname "$src"); f="/tmp/jfms-config-$d-v$n.tar"; while [ -e "$f" ]; do n=$((n+1)); f="/tmp/jfms-config-$d-v$n.tar"; done; if sudo tar --numeric-owner --acls --xattrs -cpf "$f" -C "$parent" "$name" && sudo chown "$(id -u):$(id -g)" "$f" && chmod 600 "$f" && tar -tf "$f" >/dev/null; then echo "Erstellt und geprüft:"; ls -lh "$f"; sha256sum "$f"; printf 'Auf der Zielmaschine ausführen:\nscp "%s@%s:%s" /path/to/destination/\n' "$USER" "$server_ip" "$f"; else echo 'Archiv konnte nicht erfolgreich erstellt und geprüft werden.'; exit 1; fi
 ```
+as service:
+```
+sudo bash <<'SETUP'
+set -e
+
+cat > /usr/local/sbin/jfms-config-backup <<'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+exec 9>/run/lock/jfms-config-backup.lock
+flock 9
+
+source_dir=/opt/jfms
+backup_dir=/opt/jfms/backup
+
+[[ -d "$source_dir/config" ]] || { echo "Fehlt: $source_dir/config" >&2; exit 1; }
+[[ -f "$source_dir/compose.yaml" ]] || { echo "Fehlt: $source_dir/compose.yaml" >&2; exit 1; }
+
+mkdir -p "$backup_dir"
+date_stamp=$(date +%Y%m%d)
+version=1
+archive="$backup_dir/jfms-config-$date_stamp-v$version.tar"
+
+while [[ -e "$archive" ]]; do
+    version=$((version + 1))
+    archive="$backup_dir/jfms-config-$date_stamp-v$version.tar"
+done
+
+tmp=$(mktemp "$backup_dir/.jfms-config-backup.XXXXXX")
+trap 'rm -f -- "$tmp"' EXIT
+
+tar --numeric-owner --acls --xattrs -cpf "$tmp" \
+    -C "$source_dir" config compose.yaml
+tar -tf "$tmp" >/dev/null
+mv -- "$tmp" "$archive"
+trap - EXIT
+
+# Nur Dateien im exakten Namensformat für die Aufbewahrung berücksichtigen.
+matching=()
+for file in "$backup_dir"/jfms-config-*.tar; do
+    [[ -f "$file" ]] || continue
+    base=${file##*/}
+    if [[ "$base" =~ ^jfms-config-[0-9]{8}-v[1-9][0-9]*\.tar$ ]]; then
+        matching+=("$file")
+    fi
+done
+
+if ((${#matching[@]} > 3)); then
+    mapfile -t sorted < <(printf '%s\n' "${matching[@]}" | sort -V)
+    remove_count=$((${#sorted[@]} - 3))
+    for ((i = 0; i < remove_count; i++)); do
+        rm -f -- "${sorted[i]}"
+    done
+fi
+
+echo "Backup erstellt und geprüft: $archive"
+SCRIPT
+
+chmod 0755 /usr/local/sbin/jfms-config-backup
+
+cat > /etc/systemd/system/jfms-config-backup.service <<'UNIT'
+[Unit]
+Description=Backup von JFMS-Konfiguration und Compose-Datei
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/jfms-config-backup
+UNIT
+
+cat > /etc/systemd/system/jfms-config-backup.timer <<'UNIT'
+[Unit]
+Description=Tägliches JFMS-Konfigurationsbackup
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+Unit=jfms-config-backup.service
+
+[Install]
+WantedBy=timers.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now jfms-config-backup.timer
+SETUP
+```
