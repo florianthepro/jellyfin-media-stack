@@ -11,7 +11,6 @@ sudo bash -c 'set -Eeuo pipefail; clear; U="${SUDO_USER:-$(logname 2>/dev/null |
 - enter [input](#input) from the bottom
 - `sudo ~/setup-jfms.sh`
 - sudo rm ~/setup-jfms.sh
-```
 
 ### input
 ```
