@@ -6,11 +6,9 @@ sudo bash -c 'set -Eeuo pipefail; clear; U="${SUDO_USER:-$(logname 2>/dev/null |
 ```
 ---
 ## commands
-- `sudo nano ~/setup-jfms.sh`
-- `sudo chmod +x ~/setup-jfms.sh`
-- paste [input](setup-jfms.sh)
-- `sudo ~/setup-jfms.sh`
-- `sudo rm ~/setup-jfms.sh`
+```
+sudo nano ~/setup-jfms.sh && sudo chmod +x ~/setup-jfms.sh && sudo ~/setup-jfms.sh && sudo rm ~/setup-jfms.sh
+```
 
 ### input
 ```
@@ -22,7 +20,8 @@ clear
 NAME="jellyfin-media-stack"
 DEFAULT_ROOT="/opt/jfms"
 COMPOSE_SERVICE_ALWAYS="cloudflared"
-
+figlet "$NAME"
+echo "v2"
 section() {
     printf '\n\033[1;36m%s\033[0m\n' "=== $1 ==="
 }
