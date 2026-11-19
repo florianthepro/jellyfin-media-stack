@@ -15,117 +15,222 @@ rm -f ~/setup-jfms.sh && sudo nano ~/setup-jfms.sh && sudo chmod +x ~/setup-jfms
 ---
 ## [backup:](/backup)
 
-wiederherstellung:
 ```
-sudo bash -c 'set -euo pipefail; root=/opt/jfms; d="$root/backup"; exec 9>/run/lock/jfms-config-restore.lock; flock -n 9 || { echo "Wiederherstellung läuft bereits."; exit 1; }; mapfile -t a < <(find "$d" -maxdepth 1 -type f -regextype posix-extended -regex ".*/jfms-config-[0-9]{8}-v[1-9][0-9]*\.tar" -printf "%f\n" | sort -V); ((${#a[@]})) || { echo "Kein passendes Backup gefunden."; exit 1; }; printf "%s\n" "${a[@]}" | nl -v1; read -r -p "Auswahl [${#a[@]} = neuestes]: " n; n=${n:-${#a[@]}}; [[ "$n" =~ ^[0-9]+$ ]] && ((10#$n >= 1 && 10#$n <= ${#a[@]})) || { echo "Ungültige Auswahl."; exit 1; }; f="$d/${a[10#$n-1]}"; t=$(mktemp -d "$root/.jfms-restore.XXXXXX"); cm=0; pm=0; ci=0; pi=0; ok=0; cleanup(){ s=$?; trap - EXIT; if ((s != 0 && ok == 0)); then ((ci)) && rm -rf -- "$root/config"; ((pi)) && rm -f -- "$root/compose.yaml"; ((cm)) && mv -- "$t/config.old" "$root/config"; ((pm)) && mv -- "$t/compose.old" "$root/compose.yaml"; fi; rm -rf -- "$t"; exit "$s"; }; trap cleanup EXIT; tar --numeric-owner --acls --xattrs -xpf "$f" -C "$t" config compose.yaml; [[ -d "$t/config" && -f "$t/compose.yaml" ]] || { echo "Archiv enthält nicht beide erwarteten Pfade."; exit 1; }; if [[ -e "$root/config" || -L "$root/config" ]]; then mv -- "$root/config" "$t/config.old"; cm=1; fi; if [[ -e "$root/compose.yaml" || -L "$root/compose.yaml" ]]; then mv -- "$root/compose.yaml" "$t/compose.old"; pm=1; fi; mv -- "$t/config" "$root/config"; ci=1; mv -- "$t/compose.yaml" "$root/compose.yaml"; pi=1; ok=1; echo "Wiederhergestellt aus: ${a[10#$n-1]}"'
+sudo bash -c 'set -euo pipefail; F=/usr/local/sbin/jfms-config-backup; do_backup(){ exec 9>/run/lock/jfms-config-backup.lock; flock -w 2 9||{ echo "Backup läuft bereits."; return 1; }; src=/opt/jfms; bdir=/opt/jfms/backup; [[ -d "$src/config" ]]||{ echo "Fehlt: $src/config">&2; return 1; }; [[ -f "$src/compose.yaml" ]]||{ echo "Fehlt: $src/compose.yaml">&2; return 1; }; mkdir -p "$bdir"; umask 077; d=$(date +%Y%m%d); n=1; f="$bdir/jfms-config-$d-v$n.tar"; while [[ -e "$f" ]]; do n=$((n+1)); f="$bdir/jfms-config-$d-v$n.tar"; done; tmp=$(mktemp "$bdir/.jfms-config-$d-v$n.XXXXXX"); trap "rm -f -- $tmp 2>/dev/null||true" EXIT; tar --numeric-owner --acls --xattrs -cpf "$tmp" -C "$src" config compose.yaml; tar -tf "$tmp" >/dev/null; mv -- "$tmp" "$f"; trap - EXIT; matching=(); for file in "$bdir"/jfms-config-*.tar; do [[ -f "$file" ]]||continue; base=${file##*/}; [[ "$base" =~ ^jfms-config-[0-9]{8}-v[1-9][0-9]*\.tar$ ]]&&matching+=("$file"); done; if ((${#matching[@]}>3)); then mapfile -t sorted < <(printf "%s\n" "${matching[@]}"|sort -V); rm_count=$((${#sorted[@]}-3)); for ((i=0;i<rm_count;i++)); do rm -f -- "${sorted[i]}"; done; fi; echo "Backup: $f"; sha256sum "$f" 2>/dev/null||true; sip=$(awk "{print \$1}" <<< "${SSH_CONNECTION:-}" 2>/dev/null||true); [[ -n "$sip" ]]&&printf "scp \"%s@%s:%s\" /ziel/\n" "${USER:-root}" "$sip" "$f"; exec 9>&-; }; do_restore(){ root=/opt/jfms; exec 9>/run/lock/jfms-config-restore.lock; flock -n 9||{ echo "Wiederherstellung läuft bereits."; return 1; }; read -rp "Archiv: 1) /tmp 2) $root/backup [2]: " w; case "${w:-2}" in 1) d=/tmp;; 2) d="$root/backup";; *) echo "Ungültig"; return 1;; esac; [[ -d "$d" ]]||{ echo "Fehlt: $d"; return 1; }; mapfile -t a < <(find "$d" -maxdepth 1 -type f -regextype posix-extended -regex ".*/jfms-config-[0-9]{8}-v[1-9][0-9]*\.tar" -printf "%f\n"|sort -V); ((${#a[@]}))||{ echo "Keine Archive."; return 1; }; printf "%s\n" "${a[@]}"|nl -v1; read -rp "Nr [${#a[@]}]: " n || return 1; n=${n:-${#a[@]}}; [[ "$n" =~ ^[0-9]+$ ]]||return 1; ix=$((10#$n-1)); ((ix>=0&&ix<${#a[@]}))||return 1; f="$d/${a[ix]}"; t=$(mktemp -d "$root/.jfms-restore.XXXXXX"); committed=0; targets=(); backups=(); had=(); installed=(); cleanup_restore(){ local rc=$?; trap - EXIT; if ((rc!=0&&committed==0)); then set +e; for ((i=${#targets[@]}-1;i>=0;i--)); do ((installed[i]))&&rm -rf -- "${targets[i]}"; ((had[i]))&&mv -- "${backups[i]}" "${targets[i]}"; done; fi; [[ -z "${t:-}" ]]||rm -rf -- "$t"; exit "$rc"; }; trap cleanup_restore EXIT; tar -tf "$f" > "$t/members"||return 1; hc=0; hp=0; while IFS= read -r m; do [[ "$m" != /* && ! "$m" =~ (^|/)\.\.(/|$) ]]||{ echo "Unsicher: $m"; return 1; }; case "$m" in config|config/|config/*) hc=1;; compose.yaml) hp=1;; *) echo "Unerwartet: $m"; return 1;; esac; done < "$t/members"; ((hc&&hp))||return 1; mkdir "$t/new"; tar --numeric-owner --acls --xattrs -xpf "$f" -C "$t/new" config compose.yaml; [[ -d "$t/new/config" && -f "$t/new/compose.yaml" ]]||return 1; read -rp "1) config/ ersetzen 2) Unterordner [1]: " scope; all=0; dirs=(); case "${scope:-1}" in 1) all=1;; 2) [[ -d "$root/config" ]]||return 1; mapfile -t available < <(find "$t/new/config" -mindepth 1 -maxdepth 1 -type d -printf "%f\n"|sort -V); ((${#available[@]}))||return 1; printf "%s\n" "${available[@]}"|nl -v1; read -rp "Nummern: " picks || return 1; IFS="," read -r -a ps <<< "$picks"; for p in "${ps[@]}"; do p=${p//[[:space:]]/}; [[ "$p" =~ ^[0-9]+$ ]]||return 1; j=$((10#$p-1)); ((j>=0&&j<${#available[@]}))||return 1; x=${available[j]}; dup=0; for y in "${dirs[@]}"; do [[ "$y" == "$x" ]]&&dup=1; done; ((dup))||dirs+=("$x"); done; ((${#dirs[@]}))||return 1;; *) return 1;; esac; read -rp "compose.yaml auch? [J/n]: " cpchoice; rc_c=1; case "${cpchoice,,}" in n|nein) rc_c=0;; esac; replace(){ s=$1; dd=$2; i=${#targets[@]}; b="$t/old/$i"; mkdir -p "$t/old"; targets+=("$dd"); backups+=("$b"); had+=(0); installed+=(0); if [[ -e "$dd" || -L "$dd" ]]; then mv -- "$dd" "$b"; had[i]=1; fi; mv -- "$s" "$dd"; installed[i]=1; }; if ((all)); then replace "$t/new/config" "$root/config"; else for x in "${dirs[@]}"; do replace "$t/new/config/$x" "$root/config/$x"; done; fi; ((rc_c))&&replace "$t/new/compose.yaml" "$root/compose.yaml"; committed=1; rm -rf -- "$t"; t=; trap - EXIT; echo "Wiederhergestellt."; read -rp "1) alle 2) auswählen 3) keine [3]: " action; action=${action:-3}; case "$action" in 3) return 0;; 1|2) ;; *) return 1;; esac; dc=(docker compose --project-directory "$root" -f "$root/compose.yaml"); services_text=$("${dc[@]}" config --services)||return 1; [[ -n "$services_text" ]]||return 1; mapfile -t services <<< "$services_text"; if [[ "$action" == 1 ]]; then "${dc[@]}" up -d; else printf "%s\n" "${services[@]}"|nl -v1; read -rp "Nummern: " picks || return 1; IFS="," read -r -a ps <<< "$picks"; chosen=(); for p in "${ps[@]}"; do p=${p//[[:space:]]/}; [[ "$p" =~ ^[0-9]+$ ]]||return 1; j=$((10#$p-1)); ((j>=0&&j<${#services[@]}))||return 1; chosen+=("${services[j]}"); done; ((${#chosen[@]}))||return 1; "${dc[@]}" up -d "${chosen[@]}"; fi; }; do_show(){ f=$(find /opt/jfms/backup -maxdepth 1 -type f -regextype posix-extended -regex ".*/jfms-config-[0-9]{8}-v[1-9][0-9]*\.tar" -printf "%f\n" 2>/dev/null|sort -V|tail -n1); [[ -n "$f" ]]||{ echo "Kein Backup vorhanden."; return 1; }; echo "Inhalt: $f (Tiefe 1-4)"; tar -tf "/opt/jfms/backup/$f"|awk -F/ "NF <= 4"; }; install_svc(){ { echo "#!/usr/bin/env bash"; echo "set -euo pipefail"; echo "F=$F"; declare -f do_backup do_restore do_show install_svc uninstall_svc main; echo "main \"\$@\""; } > "$F"; chmod 755 "$F"; printf "%s\n" "[Unit]" "Description=JFMS Backup" "" "[Service]" "Type=oneshot" "ExecStart=$F --backup-only" > /etc/systemd/system/jfms-config-backup.service; printf "%s\n" "[Unit]" "Description=JFMS Backup Timer" "" "[Timer]" "OnCalendar=*-*-* 02:00:00" "Persistent=true" "Unit=jfms-config-backup.service" "" "[Install]" "WantedBy=timers.target" > /etc/systemd/system/jfms-config-backup.timer; systemctl daemon-reload; systemctl enable --now jfms-config-backup.timer; echo "Service installiert: $F"; }; uninstall_svc(){ systemctl disable --now jfms-config-backup.timer 2>/dev/null||true; rm -f /etc/systemd/system/jfms-config-backup.service /etc/systemd/system/jfms-config-backup.timer "$F"; systemctl daemon-reload; echo "Entfernt."; }; main(){ [[ "${1:-}" == "--backup-only" ]]&&{ do_backup; return; }; [[ $EUID -eq 0 ]]||{ echo "Root nötig">&2; return 1; }; while true; do echo; echo "=== JFMS Backup-Verwaltung ==="; echo "1) Backup jetzt erstellen"; echo "2) Backup wiederherstellen"; echo "3) Neuestes Backup anzeigen"; if [[ -f "$F" ]]; then echo "4) Backup-Service deinstallieren"; else echo "4) Backup-Service installieren (täglich 02:00)"; fi; echo "5) Beenden"; read -rp "Auswahl [5]: " c || exit 0; case "${c:-5}" in 1) ( do_backup )||true;; 2) ( do_restore )||true;; 3) ( do_show )||true;; 4) if [[ -f "$F" ]]; then ( uninstall_svc )||true; else ( install_svc )||true; fi;; 5) exit 0;; *) echo "Ungültig";; esac; done; }; main "$@"'
 ```
-v2
+mehrzeilig:
 ```
-sudo bash -c 'set -Eeuo pipefail; root=/opt/jfms; exec 9>/run/lock/jfms-config-restore.lock; flock -n 9 || { echo "Eine Wiederherstellung läuft bereits."; exit 1; }; read -r -p "Archivverzeichnis: 1) /tmp  2) /opt/jfms/backup [2]: " w </dev/tty; case "${w:-2}" in 1) d=/tmp;; 2) d="$root/backup";; *) echo "Ungültige Auswahl."; exit 1;; esac; [[ -d "$d" ]] || { echo "Ordner nicht gefunden: $d"; exit 1; }; mapfile -t a < <(find "$d" -maxdepth 1 -type f -regextype posix-extended -regex ".*/jfms-config-[0-9]{8}-v[1-9][0-9]*\.tar" -printf "%f\n" | sort -V); ((${#a[@]})) || { echo "Kein passendes Archiv gefunden."; exit 1; }; printf "%s\n" "${a[@]}" | nl -v1; read -r -p "Archivnummer [${#a[@]} = neuestes]: " n </dev/tty; n=${n:-${#a[@]}}; [[ "$n" =~ ^[0-9]+$ ]] || { echo "Ungültige Auswahl."; exit 1; }; ix=$((10#$n-1)); ((ix>=0 && ix<${#a[@]})) || { echo "Ungültige Auswahl."; exit 1; }; f="$d/${a[ix]}"; t=$(mktemp -d "$root/.jfms-restore.XXXXXX"); committed=0; targets=(); backups=(); had=(); installed=(); cleanup(){ rc=$?; trap - EXIT; if ((rc!=0 && committed==0)); then set +e; for ((i=${#targets[@]}-1;i>=0;i--)); do if ((installed[i])); then rm -rf -- "${targets[i]}"; fi; if ((had[i])); then mv -- "${backups[i]}" "${targets[i]}"; fi; done; fi; [[ -z "${t:-}" ]] || rm -rf -- "$t"; exit "$rc"; }; trap cleanup EXIT; tar -tf "$f" > "$t/members" || { echo "Archiv kann nicht gelesen werden."; exit 1; }; hc=0; hp=0; while IFS= read -r m; do [[ "$m" != /* && ! "$m" =~ (^|/)\.\.(/|$) ]] || { echo "Unsicherer Archivpfad: $m"; exit 1; }; case "$m" in config|config/|config/*) hc=1;; compose.yaml) hp=1;; *) echo "Unerwarteter Archivpfad: $m"; exit 1;; esac; done < "$t/members"; ((hc && hp)) || { echo "Archiv enthält nicht config/ und compose.yaml."; exit 1; }; mkdir "$t/new"; tar --numeric-owner --acls --xattrs -xpf "$f" -C "$t/new" config compose.yaml; [[ -d "$t/new/config" && -f "$t/new/compose.yaml" ]] || { echo "Archiv ist unvollständig."; exit 1; }; read -r -p "Konfiguration: 1) ganzes config/ ersetzen  2) Unterordner auswählen [1]: " scope </dev/tty; case "${scope:-1}" in 1) all=1; dirs=();; 2) all=0; [[ -d "$root/config" ]] || { echo "$root/config fehlt; wähle die vollständige Wiederherstellung."; exit 1; }; mapfile -t available < <(find "$t/new/config" -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | sort -V); ((${#available[@]})) || { echo "Keine auswählbaren Unterordner im Archiv."; exit 1; }; printf "%s\n" "${available[@]}" | nl -v1; read -r -p "Unterordner-Nummern, durch Kommas getrennt: " picks </dev/tty; IFS="," read -r -a ps <<< "$picks"; dirs=(); for p in "${ps[@]}"; do p=${p//[[:space:]]/}; [[ "$p" =~ ^[0-9]+$ ]] || { echo "Ungültige Auswahl: $p"; exit 1; }; j=$((10#$p-1)); ((j>=0 && j<${#available[@]})) || { echo "Ungültige Auswahl: $p"; exit 1; }; x=${available[j]}; dup=0; for y in "${dirs[@]}"; do [[ "$y" == "$x" ]] && dup=1; done; ((dup)) || dirs+=("$x"); done; ((${#dirs[@]})) || { echo "Keine Unterordner ausgewählt."; exit 1; };; *) echo "Ungültige Auswahl."; exit 1;; esac; read -r -p "Auch compose.yaml wiederherstellen? [J/n]: " cpchoice </dev/tty; restore_compose=1; case "${cpchoice,,}" in n|nein) restore_compose=0;; esac; replace(){ src=$1; dst=$2; i=${#targets[@]}; b="$t/old/$i"; mkdir -p "$t/old"; targets+=("$dst"); backups+=("$b"); had+=(0); installed+=(0); if [[ -e "$dst" || -L "$dst" ]]; then mv -- "$dst" "$b"; had[i]=1; fi; mv -- "$src" "$dst"; installed[i]=1; }; if ((all)); then replace "$t/new/config" "$root/config"; else for x in "${dirs[@]}"; do replace "$t/new/config/$x" "$root/config/$x"; done; fi; if ((restore_compose)); then replace "$t/new/compose.yaml" "$root/compose.yaml"; fi; committed=1; rm -rf -- "$t"; t=; echo "Dateien aus ${a[ix]} wiederhergestellt."; read -r -p "Services: 1) alle starten/anwenden  2) auswählen  3) keine [3]: " action </dev/tty; action=${action:-3}; case "$action" in 3) echo "Keine Services gestartet."; exit 0;; 1|2) ;; *) echo "Ungültige Auswahl; Dateien sind wiederhergestellt."; exit 1;; esac; dc=(docker compose --project-directory "$root" -f "$root/compose.yaml"); if ! services_text=$("${dc[@]}" config --services); then echo "Compose-Datei konnte nicht gelesen werden; Dateien sind wiederhergestellt."; exit 1; fi; [[ -n "$services_text" ]] || { echo "Keine Compose-Services gefunden."; exit 1; }; mapfile -t services <<< "$services_text"; if [[ "$action" == 1 ]]; then "${dc[@]}" up -d; else printf "%s\n" "${services[@]}" | nl -v1; read -r -p "Service-Nummern, durch Kommas getrennt: " picks </dev/tty; IFS="," read -r -a ps <<< "$picks"; chosen=(); for p in "${ps[@]}"; do p=${p//[[:space:]]/}; [[ "$p" =~ ^[0-9]+$ ]] || { echo "Ungültige Auswahl: $p"; exit 1; }; j=$((10#$p-1)); ((j>=0 && j<${#services[@]})) || { echo "Ungültige Auswahl: $p"; exit 1; }; chosen+=("${services[j]}"); done; ((${#chosen[@]})) || { echo "Keine Services ausgewählt."; exit 1; }; "${dc[@]}" up -d "${chosen[@]}"; fi'
-```
-backup
-```
-read -rp 'Config-Quellpfad: ' src; src=${src%/}; if [ ! -d "$src" ]; then echo "Ordner nicht gefunden: $src"; exit 1; fi; read -r _ _ server_ip _ <<< "$SSH_CONNECTION"; if [ -z "$server_ip" ]; then echo 'Keine Server-IP aus SSH_CONNECTION gefunden.'; exit 1; fi; d=$(date +%Y%m%d); n=1; name=$(basename "$src"); parent=$(dirname "$src"); f="/tmp/jfms-config-$d-v$n.tar"; while [ -e "$f" ]; do n=$((n+1)); f="/tmp/jfms-config-$d-v$n.tar"; done; if sudo tar --numeric-owner --acls --xattrs -cpf "$f" -C "$parent" "$name" && sudo chown "$(id -u):$(id -g)" "$f" && chmod 600 "$f" && tar -tf "$f" >/dev/null; then echo "Erstellt und geprüft:"; ls -lh "$f"; sha256sum "$f"; printf 'Auf der Zielmaschine ausführen:\nscp "%s@%s:%s" /path/to/destination/\n' "$USER" "$server_ip" "$f"; else echo 'Archiv konnte nicht erfolgreich erstellt und geprüft werden.'; exit 1; fi
-```
-v2
-```
-( set -euo pipefail; sudo -v || { echo 'sudo fehlgeschlagen.'; exit 1; }; read -rp 'Speicherort: 1) /tmp  2) /opt/jfms/backup [1]: ' choice; case "${choice:-1}" in 1) dest=/tmp;; 2) dest=/opt/jfms/backup; sudo mkdir -p "$dest" && sudo chmod o+x "$dest" || { echo 'Backup-Ordner konnte nicht vorbereitet werden.'; exit 1; };; *) echo 'Ungültige Auswahl.'; exit 1;; esac; [ -d /opt/jfms/config ] || { echo 'Ordner nicht gefunden: /opt/jfms/config'; exit 1; }; [ -f /opt/jfms/compose.yaml ] || { echo 'Datei nicht gefunden: /opt/jfms/compose.yaml'; exit 1; }; read -r _ _ server_ip _ <<< "${SSH_CONNECTION:-}"; [ -n "$server_ip" ] || { echo 'Keine Server-IP aus SSH_CONNECTION gefunden.'; exit 1; }; d=$(date +%Y%m%d); n=1; f="$dest/jfms-config-$d-v$n.tar"; while sudo test -e "$f"; do n=$((n+1)); f="$dest/jfms-config-$d-v$n.tar"; done; tmp=$(sudo mktemp "$dest/.jfms-config-$d-v$n.XXXXXX"); trap 'if [[ -n "${tmp:-}" ]]; then sudo rm -f -- "$tmp" 2>/dev/null || true; fi' EXIT; if sudo tar --numeric-owner --acls --xattrs -cpf "$tmp" -C /opt/jfms config compose.yaml && sudo chown "$(id -u):$(id -g)" "$tmp" && sudo chmod 600 "$tmp" && sudo tar -tf "$tmp" >/dev/null && sudo mv -- "$tmp" "$f"; then tmp=; echo "Erstellt und geprüft:"; ls -lh "$f"; sha256sum "$f"; printf 'Auf der Zielmaschine ausführen:\nscp "%s@%s:%s" /path/to/destination/\n' "$USER" "$server_ip" "$f"; else echo 'Archiv konnte nicht erfolgreich erstellt und geprüft werden.'; exit 1; fi )
-```
-test
-```
-sudo systemctl start jfms-config-backup.service &&
-f=$(sudo find /opt/jfms/backup -maxdepth 1 -type f \
-  -regextype posix-extended \
-  -regex '.*/jfms-config-[0-9]{8}-v[1-9][0-9]*\.tar' \
-  -printf '%f\n' | sort -V | tail -n 1) &&
-test -n "$f" &&
-echo "Inhalt von /opt/jfms/backup/$f (Tiefe 1–4):" &&
-sudo tar -tf "/opt/jfms/backup/$f" | awk -F/ 'NF <= 4'
-```
-as service:
-```
-sudo bash <<'SETUP'
-set -e
-
-cat > /usr/local/sbin/jfms-config-backup <<'SCRIPT'
-#!/usr/bin/env bash
+sudo bash <<'JFMS'
 set -euo pipefail
-umask 077
 
-exec 9>/run/lock/jfms-config-backup.lock
-flock 9
-
-source_dir=/opt/jfms
-backup_dir=/opt/jfms/backup
-
-[[ -d "$source_dir/config" ]] || { echo "Fehlt: $source_dir/config" >&2; exit 1; }
-[[ -f "$source_dir/compose.yaml" ]] || { echo "Fehlt: $source_dir/compose.yaml" >&2; exit 1; }
-
-mkdir -p "$backup_dir"
-date_stamp=$(date +%Y%m%d)
-version=1
-archive="$backup_dir/jfms-config-$date_stamp-v$version.tar"
-
-while [[ -e "$archive" ]]; do
-    version=$((version + 1))
-    archive="$backup_dir/jfms-config-$date_stamp-v$version.tar"
-done
-
-tmp=$(mktemp "$backup_dir/.jfms-config-backup.XXXXXX")
-trap 'rm -f -- "$tmp"' EXIT
-
-tar --numeric-owner --acls --xattrs -cpf "$tmp" \
-    -C "$source_dir" config compose.yaml
-tar -tf "$tmp" >/dev/null
-mv -- "$tmp" "$archive"
-trap - EXIT
-
-# Nur Dateien im exakten Namensformat für die Aufbewahrung berücksichtigen.
-matching=()
-for file in "$backup_dir"/jfms-config-*.tar; do
-    [[ -f "$file" ]] || continue
-    base=${file##*/}
-    if [[ "$base" =~ ^jfms-config-[0-9]{8}-v[1-9][0-9]*\.tar$ ]]; then
-        matching+=("$file")
-    fi
-done
-
-if ((${#matching[@]} > 3)); then
-    mapfile -t sorted < <(printf '%s\n' "${matching[@]}" | sort -V)
-    remove_count=$((${#sorted[@]} - 3))
-    for ((i = 0; i < remove_count; i++)); do
-        rm -f -- "${sorted[i]}"
+do_backup() {
+    local src=/opt/jfms bdir=/opt/jfms/backup
+    [[ -d "$src/config" ]]       || { echo "Fehlt: $src/config" >&2; return 1; }
+    [[ -f "$src/compose.yaml" ]] || { echo "Fehlt: $src/compose.yaml" >&2; return 1; }
+    mkdir -p "$bdir"
+    local old_umask; old_umask=$(umask); umask 077
+    local d n=1 f; d=$(date +%Y%m%d); f="$bdir/jfms-config-$d-v$n.tar"
+    while [[ -e "$f" ]]; do n=$((n+1)); f="$bdir/jfms-config-$d-v$n.tar"; done
+    local tmp; tmp=$(mktemp "$bdir/.jfms-config-$d-v$n.XXXXXX")
+    trap 'rm -f -- "$tmp" 2>/dev/null || true' EXIT
+    tar --numeric-owner --acls --xattrs -cpf "$tmp" -C "$src" config compose.yaml
+    tar -tf "$tmp" >/dev/null
+    mv -- "$tmp" "$f"; trap - EXIT; umask "$old_umask"
+    local -a matching=() ; local file base
+    for file in "$bdir"/jfms-config-*.tar; do
+        [[ -f "$file" ]] || continue
+        base=${file##*/}
+        [[ "$base" =~ ^jfms-config-[0-9]{8}-v[1-9][0-9]*\.tar$ ]] && matching+=("$file")
     done
-fi
+    if ((${#matching[@]} > 3)); then
+        local -a sorted
+        mapfile -t sorted < <(printf '%s\n' "${matching[@]}" | sort -V)
+        local rc=$((${#sorted[@]} - 3)) i
+        for ((i=0;i<rc;i++)); do rm -f -- "${sorted[i]}"; done
+    fi
+    echo "Backup erstellt und geprüft: $f"
+    sha256sum "$f" 2>/dev/null || true
+    local sip; sip=$(awk '{print $1}' <<< "${SSH_CONNECTION:-}" 2>/dev/null || true)
+    [[ -n "$sip" ]] && printf 'Auf Zielmaschine ausführen:\nscp "%s@%s:%s" /ziel/\n' "${USER:-root}" "$sip" "$f"
+}
 
-echo "Backup erstellt und geprüft: $archive"
-SCRIPT
+do_restore() {
+    local root=/opt/jfms
+    exec 9>/run/lock/jfms-config-restore.lock
+    flock -n 9 || { echo "Wiederherstellung läuft bereits."; return 1; }
+    local w; read -r -p "Archivverzeichnis: 1) /tmp  2) $root/backup [2]: " w
+    local d; case "${w:-2}" in 1) d=/tmp;; 2) d="$root/backup";; *) echo "Ungültig."; return 1;; esac
+    [[ -d "$d" ]] || { echo "Ordner fehlt: $d"; return 1; }
+    local -a a
+    mapfile -t a < <(find "$d" -maxdepth 1 -type f -regextype posix-extended \
+        -regex '.*/jfms-config-[0-9]{8}-v[1-9][0-9]*\.tar' -printf '%f\n' | sort -V)
+    ((${#a[@]})) || { echo "Keine Archive."; return 1; }
+    printf '%s\n' "${a[@]}" | nl -v1
+    local n; read -r -p "Nummer [${#a[@]} = neuestes]: " n; n=${n:-${#a[@]}}
+    [[ "$n" =~ ^[0-9]+$ ]] || { echo "Ungültig."; return 1; }
+    local ix=$((10#$n-1)); ((ix>=0 && ix<${#a[@]})) || { echo "Ungültig."; return 1; }
+    local f="$d/${a[ix]}" t; t=$(mktemp -d "$root/.jfms-restore.XXXXXX")
+    local committed=0
+    local -a targets=() backups=() had=() installed=()
+    cleanup_restore() {
+        local rc=$?; trap - EXIT
+        if ((rc!=0 && committed==0)); then
+            set +e; local i
+            for ((i=${#targets[@]}-1;i>=0;i--)); do
+                ((installed[i])) && rm -rf -- "${targets[i]}"
+                ((had[i]))       && mv -- "${backups[i]}" "${targets[i]}"
+            done
+        fi
+        [[ -z "${t:-}" ]] || rm -rf -- "$t"
+        exit "$rc"
+    }
+    trap cleanup_restore EXIT
+    tar -tf "$f" > "$t/members" || { echo "Archiv nicht lesbar."; return 1; }
+    local hc=0 hp=0 m
+    while IFS= read -r m; do
+        [[ "$m" != /* && ! "$m" =~ (^|/)\.\.(/|$) ]] || { echo "Unsicher: $m"; return 1; }
+        case "$m" in config|config/|config/*) hc=1;; compose.yaml) hp=1;; *) echo "Unerwartet: $m"; return 1;; esac
+    done < "$t/members"
+    ((hc && hp)) || { echo "Archiv unvollständig."; return 1; }
+    mkdir "$t/new"
+    tar --numeric-owner --acls --xattrs -xpf "$f" -C "$t/new" config compose.yaml
+    [[ -d "$t/new/config" && -f "$t/new/compose.yaml" ]] || { echo "Archiv unvollständig."; return 1; }
+    local scope; read -r -p "1) ganzes config/ ersetzen  2) Unterordner [1]: " scope
+    local all=0 dirs=()
+    case "${scope:-1}" in
+        1) all=1;;
+        2) all=0; [[ -d "$root/config" ]] || { echo "$root/config fehlt."; return 1; }
+           local -a available
+           mapfile -t available < <(find "$t/new/config" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -V)
+           ((${#available[@]})) || { echo "Keine Unterordner."; return 1; }
+           printf '%s\n' "${available[@]}" | nl -v1
+           local picks; read -r -p "Nummern (Komma): " picks
+           local -a ps; IFS=',' read -r -a ps <<< "$picks"
+           local p j x y dup
+           for p in "${ps[@]}"; do
+               p=${p//[[:space:]]/}; [[ "$p" =~ ^[0-9]+$ ]] || { echo "Ungültig: $p"; return 1; }
+               j=$((10#$p-1)); ((j>=0 && j<${#available[@]})) || { echo "Ungültig: $p"; return 1; }
+               x=${available[j]}; dup=0; for y in "${dirs[@]}"; do [[ "$y" == "$x" ]] && dup=1; done
+               ((dup)) || dirs+=("$x")
+           done
+           ((${#dirs[@]})) || { echo "Keine Auswahl."; return 1; };;
+        *) echo "Ungültig."; return 1;;
+    esac
+    local cpchoice restore_compose=1
+    read -r -p "Auch compose.yaml wiederherstellen? [J/n]: " cpchoice
+    case "${cpchoice,,}" in n|nein) restore_compose=0;; esac
+    replace() {
+        local src=$1 dst=$2 i=${#targets[@]} b="$t/old/$i"
+        mkdir -p "$t/old"; targets+=("$dst"); backups+=("$b"); had+=(0); installed+=(0)
+        if [[ -e "$dst" || -L "$dst" ]]; then mv -- "$dst" "$b"; had[i]=1; fi
+        mv -- "$src" "$dst"; installed[i]=1
+    }
+    local x
+    if ((all)); then replace "$t/new/config" "$root/config"
+    else for x in "${dirs[@]}"; do replace "$t/new/config/$x" "$root/config/$x"; done; fi
+    ((restore_compose)) && replace "$t/new/compose.yaml" "$root/compose.yaml"
+    committed=1; rm -rf -- "$t"; t=
+    echo "Dateien aus ${a[ix]} wiederhergestellt."
+    local action; read -r -p "Services: 1) alle starten  2) auswählen  3) keine [3]: " action; action=${action:-3}
+    case "$action" in 3) echo "Keine Services gestartet."; return 0;; 1|2) ;; *) echo "Ungültig; Dateien wiederhergestellt."; return 1;; esac
+    local -a dc=(docker compose --project-directory "$root" -f "$root/compose.yaml")
+    local services_text; services_text=$("${dc[@]}" config --services) || { echo "Compose nicht lesbar."; return 1; }
+    [[ -n "$services_text" ]] || { echo "Keine Services."; return 1; }
+    local -a services; mapfile -t services <<< "$services_text"
+    if [[ "$action" == 1 ]]; then "${dc[@]}" up -d
+    else
+        printf '%s\n' "${services[@]}" | nl -v1
+        local picks; read -r -p "Nummern (Komma): " picks
+        local -a ps; IFS=',' read -r -a ps <<< "$picks"
+        local chosen=() p j
+        for p in "${ps[@]}"; do
+            p=${p//[[:space:]]/}; [[ "$p" =~ ^[0-9]+$ ]] || { echo "Ungültig: $p"; return 1; }
+            j=$((10#$p-1)); ((j>=0 && j<${#services[@]})) || { echo "Ungültig: $p"; return 1; }
+            chosen+=("${services[j]}")
+        done
+        ((${#chosen[@]})) || { echo "Keine Auswahl."; return 1; }
+        "${dc[@]}" up -d "${chosen[@]}"
+    fi
+}
 
-chmod 0755 /usr/local/sbin/jfms-config-backup
+do_show() {
+    local f
+    f=$(find /opt/jfms/backup -maxdepth 1 -type f -regextype posix-extended \
+        -regex '.*/jfms-config-[0-9]{8}-v[1-9][0-9]*\.tar' -printf '%f\n' 2>/dev/null | sort -V | tail -n1)
+    [[ -n "$f" ]] || { echo "Kein Backup vorhanden."; return 1; }
+    echo "Inhalt von /opt/jfms/backup/$f (Tiefe 1-4):"
+    tar -tf "/opt/jfms/backup/$f" | awk -F/ 'NF <= 4'
+}
 
-cat > /etc/systemd/system/jfms-config-backup.service <<'UNIT'
+is_installed() {
+    [[ -f /usr/local/sbin/jfms-backup && -f /etc/systemd/system/jfms-config-backup.timer ]]
+}
+
+do_install_service() {
+    {
+        echo '#!/usr/bin/env bash'
+        echo 'set -euo pipefail'
+        declare -f do_backup do_restore do_show is_installed do_install_service do_uninstall_service main
+        echo 'main "$@"'
+    } > /usr/local/sbin/jfms-backup
+    chmod 0755 /usr/local/sbin/jfms-backup
+    cat > /etc/systemd/system/jfms-config-backup.service <<'UNIT'
 [Unit]
 Description=Backup von JFMS-Konfiguration und Compose-Datei
-
 [Service]
 Type=oneshot
-ExecStart=/usr/local/sbin/jfms-config-backup
+ExecStart=/usr/local/sbin/jfms-backup --backup-only
 UNIT
-
-cat > /etc/systemd/system/jfms-config-backup.timer <<'UNIT'
+    cat > /etc/systemd/system/jfms-config-backup.timer <<'UNIT'
 [Unit]
 Description=Tägliches JFMS-Konfigurationsbackup
-
 [Timer]
 OnCalendar=*-*-* 02:00:00
 Persistent=true
 Unit=jfms-config-backup.service
-
 [Install]
 WantedBy=timers.target
 UNIT
+    systemctl daemon-reload
+    systemctl enable --now jfms-config-backup.timer
+    echo "Service installiert. Manuell aufrufen mit: sudo jfms-backup"
+}
 
-systemctl daemon-reload
-systemctl enable --now jfms-config-backup.timer
-SETUP
+do_uninstall_service() {
+    systemctl disable --now jfms-config-backup.timer 2>/dev/null || true
+    rm -f /etc/systemd/system/jfms-config-backup.service /etc/systemd/system/jfms-config-backup.timer
+    rm -f /usr/local/sbin/jfms-backup
+    systemctl daemon-reload
+    echo "Service und Kommando entfernt."
+}
+
+main() {
+    if [[ "${1:-}" == "--backup-only" ]]; then do_backup; return; fi
+    [[ $EUID -eq 0 ]] || { echo "Bitte mit sudo/root ausführen." >&2; return 1; }
+    while true; do
+        echo
+        echo "=== JFMS Backup-Verwaltung ==="
+        echo "1) Backup jetzt erstellen"
+        echo "2) Backup wiederherstellen"
+        echo "3) Neuestes Backup anzeigen"
+        if is_installed; then
+            echo "4) Backup-Service deinstallieren"
+        else
+            echo "4) Backup-Service installieren (täglich 02:00)"
+        fi
+        echo "5) Beenden"
+        local choice; read -r -p "Auswahl [5]: " choice
+        case "${choice:-5}" in
+            1) ( do_backup  ) || true;;
+            2) ( do_restore ) || true;;
+            3) ( do_show    ) || true;;
+            4) ( if is_installed; then do_uninstall_service; else do_install_service; fi ) || true;;
+            5) exit 0;;
+            *) echo "Ungültige Auswahl.";;
+        esac
+    done
+}
+
+main "$@"
+JFMS
 ```
