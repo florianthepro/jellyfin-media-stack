@@ -1,107 +1,53 @@
-#!/usr/bin/env bash
-set -Eeuo pipefail
-IFS=$'\n\t'
-
-INSTALL_DIR="${INSTALL_DIR:-/opt/jellyfin-media-stack}"
-MEDIA_DIR="${MEDIA_DIR:-/srv/media}"
-APP_PASSWORD="${APP_PASSWORD:-$(cat "$INSTALL_DIR/app_password.txt" 2>/dev/null || true)}"
-QBIT_PASSWORD="${QBIT_PASSWORD:-$(cat "$INSTALL_DIR/qbit_web_password.txt" 2>/dev/null || true)}"
-QBIT_API_KEY="${QBIT_API_KEY:-$(cat "$INSTALL_DIR/qbit_api_key.txt" 2>/dev/null || true)}"
-QBIT_PORT="${QBIT_PORT:-8080}"
-QBIT_TORRENT_PORT="${QBIT_TORRENT_PORT:-6881}"
-
-info(){ printf '\033[1;34m[i]\033[0m %s\n' "$1"; }
-ok(){ printf '\033[1;32m[✓]\033[0m %s\n' "$1"; }
-warn(){ printf '\033[1;33m[!]\033[0m %s\n' "$1" >&2; }
-fail(){ printf '\033[1;31m[✗]\033[0m %s\n' "$1" >&2; exit 1; }
-
-check_http(){
-  curl -fsSL "$1" >/dev/null 2>&1
-}
-
-wait_for_service(){
-  local name="$1" url="$2"
-  for _ in $(seq 1 60); do
-    if check_http "$url"; then
-      ok "$name erreichbar"
-      return 0
-    fi
-    sleep 2
-  done
-  warn "$name nicht erreichbar - manuelle Einrichtung bleibt erforderlich"
-  return 1
-}
-
-auto_qbittorrent(){
-  local qbit_url="http://127.0.0.1:${QBIT_PORT}"
-  if ! wait_for_service "qBittorrent" "$qbit_url"; then
-    return 0
-  fi
-
-  if [[ -n "$QBIT_PASSWORD" ]]; then
-    local version
-    version=$(curl -fsSL -u "admin:$QBIT_PASSWORD" "$qbit_url/api/v2/app/version" 2>/dev/null || true)
-    if [[ -n "$version" ]]; then
-      ok "qBittorrent API erreichbar"
-      info "qBittorrent API-Key: $QBIT_API_KEY"
-      info "Login: admin / $QBIT_PASSWORD"
-    else
-      warn "qBittorrent Auth nicht erreichbar; manuelles Setup bleibt erforderlich."
-    fi
-  fi
-}
-
-auto_jellyfin(){
-  if wait_for_service "Jellyfin" "http://127.0.0.1:8096"; then
-    info "Jellyfin Admin: admin"
-    info "Jellyfin Passwort: $APP_PASSWORD"
-  fi
-}
-
-auto_sonarr(){
-  if wait_for_service "Sonarr" "http://127.0.0.1:8989"; then
-    info "Sonarr ist bereit; Root-Folder: /tv"
-  fi
-}
-
-auto_radarr(){
-  if wait_for_service "Radarr" "http://127.0.0.1:7878"; then
-    info "Radarr ist bereit; Root-Folder: /movies"
-  fi
-}
-
-auto_prowlarr(){
-  if wait_for_service "Prowlarr" "http://127.0.0.1:9696"; then
-    info "Prowlarr ist bereit; Indexer konfigurieren"
-  fi
-}
-
-auto_seerr(){
-  if wait_for_service "Seerr" "http://127.0.0.1:5055"; then
-    info "Seerr ist bereit; Admin-Anbindung konfigurieren"
-  fi
-}
-
-print_final(){
-  printf '\n====================================================\n'
-  printf 'Automatisches Setup\n'
-  printf '====================================================\n'
-  printf 'Admin Passwort: %s\n' "$APP_PASSWORD"
-  printf 'qBittorrent Passwort: %s\n' "$QBIT_PASSWORD"
-  printf 'qBittorrent API-Key: %s\n' "$QBIT_API_KEY"
-  printf 'Downloadpfad: %s/downloads\n' "$MEDIA_DIR"
-  printf '====================================================\n'
-}
-
-main(){
-  auto_jellyfin
-  auto_qbittorrent
-  auto_sonarr
-  auto_radarr
-  auto_prowlarr
-  auto_seerr
-  print_final
-  printf '\nWenn eine API nicht erreichbar ist, bleibt die manuelle GUI-Konfiguration aktiv.\n'
-}
-
-main "$@"
+name: jellyfin-media-stack
+services:
+  portainer:
+    image: portainer/portainer-ce:lts
+    container_name: portainer
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./config/portainer:/data"
+    restart: always
+  cloudflared:
+    profiles: [always-active]
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared-jfms
+    command: ["tunnel", "--no-autoupdate", "run", "--token", "${CLOUDFLARE_API_KEY}"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    restart: always
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    environment: {TZ: "${TZ}"}
+    volumes:
+      - "./config/jellyfin/config:/config"
+      - "./data/jellyfin/cache:/cache"
+      - "${MEDIA}:/media"
+    restart: unless-stopped
+  tdarr:
+    image: ghcr.io/haveagitgat/tdarr:latest
+    container_name: tdarr
+    environment: {TZ: "${TZ}", PUID: "${PUID}", PGID: "${PGID}", serverIP: "0.0.0.0", serverPort: "8266", webUIPort: "8265", internalNode: "true", inContainer: "true", auth: "true", apiKey: "${TDARR_API_KEY}"}
+    volumes:
+      - "./config/tdarr/server:/app/server"
+      - "./config/tdarr/configs:/app/configs"
+      - "./data/tdarr/logs:/app/logs"
+      - "./data/tdarr/temp:/temp"
+      - "${MEDIA}:/media"
+    restart: unless-stopped
+  iptv-epg:
+    image: ghcr.io/iptv-org/epg:master
+    profiles: [disabled]
+    container_name: iptv-epg
+    environment: {TZ: "${TZ}", CRON_SCHEDULE: "30 2 * * *", DAYS: "7", RUN_AT_STARTUP: "true"}
+    volumes:
+      - "./data/iptv-epg/public:/epg/public"
+      - "${IPTV_CHANNELS_XML}:/epg/channels.xml:ro"
+    restart: unless-stopped
+  iptv-epg-arte:
+    image: ghcr.io/iptv-org/epg:master
+    container_name: iptv-epg-arte
+    environment: {TZ: "${TZ}", CRON_SCHEDULE: "30 3 * * *", DAYS: "7", RUN_AT_STARTUP: "true"}
+    volumes:
+      - "./data/iptv-epg-arte/public:/epg/public"
+      - "${IPTV_ARTE_CHANNELS_XML}:/epg/channels.xml:ro"
+    restart: unless-stopped
