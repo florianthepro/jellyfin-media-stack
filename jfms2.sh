@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # jfms.sh – JFMS Verwaltung (Backup · Restore · rclone/Internxt · Jellyfin Stack)
 #
-#   curl -fsSL 'https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/jfms.sh' | sudo bash
+#   curl -fsSL 'https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/jfms2.sh' | sudo bash
 #
 # installiert:
 #   /usr/local/sbin/jfms                  (Menü)
@@ -13,7 +13,7 @@
 set -Eeuo pipefail
 
 # ---- Ziel-Pfade (KEINE Einzelbuchstaben, um Kollisionen zu vermeiden) ----
-SELF_URL="https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/jfms.sh"
+SELF_URL="https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/jfms2.sh"
 INSTALL_MENU=/usr/local/sbin/jfms
 INSTALL_RCLONE=/usr/local/sbin/jfms-rclone-setup
 INSTALL_JFMS=/usr/local/sbin/jfms-jellyfin-setup
