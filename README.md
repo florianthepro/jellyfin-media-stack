@@ -14,6 +14,12 @@ rm -f ~/setup-jfms.sh && sudo nano ~/setup-jfms.sh && sudo chmod +x ~/setup-jfms
 
 ---
 ## [backup:](/backup)
+
+wiederherstellung:
+```
+sudo bash -c 'set -euo pipefail; root=/opt/jfms; d="$root/backup"; exec 9>/run/lock/jfms-config-restore.lock; flock -n 9 || { echo "Wiederherstellung läuft bereits."; exit 1; }; mapfile -t a < <(find "$d" -maxdepth 1 -type f -regextype posix-extended -regex ".*/jfms-config-[0-9]{8}-v[1-9][0-9]*\.tar" -printf "%f\n" | sort -V); ((${#a[@]})) || { echo "Kein passendes Backup gefunden."; exit 1; }; printf "%s\n" "${a[@]}" | nl -v1; read -r -p "Auswahl [${#a[@]} = neuestes]: " n; n=${n:-${#a[@]}}; [[ "$n" =~ ^[0-9]+$ ]] && ((10#$n >= 1 && 10#$n <= ${#a[@]})) || { echo "Ungültige Auswahl."; exit 1; }; f="$d/${a[10#$n-1]}"; t=$(mktemp -d "$root/.jfms-restore.XXXXXX"); cm=0; pm=0; ci=0; pi=0; ok=0; cleanup(){ s=$?; trap - EXIT; if ((s != 0 && ok == 0)); then ((ci)) && rm -rf -- "$root/config"; ((pi)) && rm -f -- "$root/compose.yaml"; ((cm)) && mv -- "$t/config.old" "$root/config"; ((pm)) && mv -- "$t/compose.old" "$root/compose.yaml"; fi; rm -rf -- "$t"; exit "$s"; }; trap cleanup EXIT; tar --numeric-owner --acls --xattrs -xpf "$f" -C "$t" config compose.yaml; [[ -d "$t/config" && -f "$t/compose.yaml" ]] || { echo "Archiv enthält nicht beide erwarteten Pfade."; exit 1; }; if [[ -e "$root/config" || -L "$root/config" ]]; then mv -- "$root/config" "$t/config.old"; cm=1; fi; if [[ -e "$root/compose.yaml" || -L "$root/compose.yaml" ]]; then mv -- "$root/compose.yaml" "$t/compose.old"; pm=1; fi; mv -- "$t/config" "$root/config"; ci=1; mv -- "$t/compose.yaml" "$root/compose.yaml"; pi=1; ok=1; echo "Wiederhergestellt aus: ${a[10#$n-1]}"'
+```
+backup
 ```
 read -rp 'Config-Quellpfad: ' src; src=${src%/}; if [ ! -d "$src" ]; then echo "Ordner nicht gefunden: $src"; exit 1; fi; read -r _ _ server_ip _ <<< "$SSH_CONNECTION"; if [ -z "$server_ip" ]; then echo 'Keine Server-IP aus SSH_CONNECTION gefunden.'; exit 1; fi; d=$(date +%Y%m%d); n=1; name=$(basename "$src"); parent=$(dirname "$src"); f="/tmp/jfms-config-$d-v$n.tar"; while [ -e "$f" ]; do n=$((n+1)); f="/tmp/jfms-config-$d-v$n.tar"; done; if sudo tar --numeric-owner --acls --xattrs -cpf "$f" -C "$parent" "$name" && sudo chown "$(id -u):$(id -g)" "$f" && chmod 600 "$f" && tar -tf "$f" >/dev/null; then echo "Erstellt und geprüft:"; ls -lh "$f"; sha256sum "$f"; printf 'Auf der Zielmaschine ausführen:\nscp "%s@%s:%s" /path/to/destination/\n' "$USER" "$server_ip" "$f"; else echo 'Archiv konnte nicht erfolgreich erstellt und geprüft werden.'; exit 1; fi
 ```
@@ -103,131 +109,4 @@ UNIT
 systemctl daemon-reload
 systemctl enable --now jfms-config-backup.timer
 SETUP
-```
-wiederherstellung: sudo /usr/local/sbin/jfms-config-restore
-```
-sudo bash <<'INSTALL'
-set -e
-
-cat > /usr/local/sbin/jfms-config-restore <<'SCRIPT'
-#!/usr/bin/env bash
-set -euo pipefail
-umask 077
-
-[[ $EUID -eq 0 ]] || { echo "Bitte als root ausführen." >&2; exit 1; }
-
-root=/opt/jfms
-backup_dir="$root/backup"
-[[ -d "$root" && -d "$backup_dir" ]] || {
-    echo "JFMS- oder Backup-Ordner nicht gefunden." >&2
-    exit 1
-}
-
-archives=()
-for file in "$backup_dir"/jfms-config-*.tar; do
-    [[ -f "$file" ]] || continue
-    name=${file##*/}
-    if [[ "$name" =~ ^jfms-config-[0-9]{8}-v[1-9][0-9]*\.tar$ ]]; then
-        archives+=("$file")
-    fi
-done
-
-((${#archives[@]})) || {
-    echo "Keine Archive im erwarteten Namensformat gefunden." >&2
-    exit 1
-}
-
-mapfile -t archives < <(printf '%s\n' "${archives[@]}" | sort -V)
-
-echo "Verfügbare Backups (Enter = neuestes):"
-for i in "${!archives[@]}"; do
-    printf '  %d) %s\n' "$((i + 1))" "${archives[i]##*/}"
-done
-
-default=$((${#archives[@]}))
-read -r -p "Auswahl [${default}]: " choice
-choice=${choice:-$default}
-[[ "$choice" =~ ^[0-9]+$ ]] &&
-    ((choice >= 1 && choice <= ${#archives[@]})) || {
-        echo "Ungültige Auswahl." >&2
-        exit 1
-    }
-archive=${archives[choice - 1]}
-
-# Nur die erwarteten Archivpfade zulassen.
-has_config=0
-has_compose=0
-while IFS= read -r member; do
-    case "$member" in
-        config|config/|config/*)
-            [[ "$member" != /* && ! "$member" =~ (^|/)\.\.(/|$) ]] || {
-                echo "Unsicherer Archivpfad: $member" >&2
-                exit 1
-            }
-            has_config=1
-            ;;
-        compose.yaml)
-            has_compose=1
-            ;;
-        *)
-            echo "Unerwarteter Archivpfad: $member" >&2
-            exit 1
-            ;;
-    esac
-done < <(tar -tf "$archive")
-
-((has_config && has_compose)) || {
-    echo "Archiv enthält nicht sowohl config/ als auch compose.yaml." >&2
-    exit 1
-}
-
-stage=$(mktemp -d "$root/.jfms-restore.XXXXXX")
-config_moved=0
-compose_moved=0
-config_installed=0
-compose_installed=0
-committed=0
-
-cleanup() {
-    status=$?
-    trap - EXIT
-    if ((status != 0 && !committed)); then
-        if ((config_installed)); then rm -rf -- "$root/config"; fi
-        if ((compose_installed)); then rm -f -- "$root/compose.yaml"; fi
-        if ((config_moved)); then mv -- "$stage/config.old" "$root/config"; fi
-        if ((compose_moved)); then mv -- "$stage/compose.old" "$root/compose.yaml"; fi
-    fi
-    rm -rf -- "$stage"
-    exit "$status"
-}
-trap cleanup EXIT
-
-tar --numeric-owner --acls --xattrs -xpf "$archive" \
-    -C "$stage" config compose.yaml
-[[ -d "$stage/config" && -f "$stage/compose.yaml" ]] || {
-    echo "Entpackte Dateien fehlen oder sind ungültig." >&2
-    exit 1
-}
-
-if [[ -e "$root/config" || -L "$root/config" ]]; then
-    mv -- "$root/config" "$stage/config.old"
-    config_moved=1
-fi
-if [[ -e "$root/compose.yaml" || -L "$root/compose.yaml" ]]; then
-    mv -- "$root/compose.yaml" "$stage/compose.old"
-    compose_moved=1
-fi
-
-mv -- "$stage/config" "$root/config"
-config_installed=1
-mv -- "$stage/compose.yaml" "$root/compose.yaml"
-compose_installed=1
-
-committed=1
-echo "Wiederhergestellt aus: ${archive##*/}"
-SCRIPT
-
-chmod 0755 /usr/local/sbin/jfms-config-restore
-/usr/local/sbin/jfms-config-restore
-INSTALL
 ```
