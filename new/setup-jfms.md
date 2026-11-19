@@ -9,7 +9,7 @@ sudo bash -c 'set -Eeuo pipefail; clear; U="${SUDO_USER:-$(logname 2>/dev/null |
 ```
 cd ~ && sudo nano setup-jfms.sh && sudo chmod + x .\setup-jfms.sh && sudo setup-jfms.sh
 ```
-enter [#input](#input) from the bottom than follow commands below
+enter [input](#input) from the bottom than follow commands below
 ```
 cd ~ && sudo rm setup-jfms.sh
 ```
