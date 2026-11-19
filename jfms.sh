@@ -681,4 +681,38 @@ main_menu() {
         echo
         echo "=== JFMS Verwaltung ==="
         echo "1) Backup jetzt erstellen"
-        echo "2) Backup
+        echo "2) Backup wiederherstellen"
+        echo "3) Neuestes Backup anzeigen"
+        echo "4) Backup-Service verwalten (wann/wo)"
+        echo "5) rclone/Internxt Setup ausführen (Voraussetzung für JFMS)"
+        echo "6) JFMS Setup ausführen (Jellyfin Media Stack)"
+        echo "7) Beenden"
+        local C; read -r -p "Auswahl [7]: " C || exit 0
+        case "${C:-7}" in
+            1) backup_main  || true;;
+            2) restore_main || true;;
+            3) show_latest  || true;;
+            4) manage_service || true;;
+            5) "$INSTALL_RCLONE" || true;;
+            6) "$INSTALL_JFMS"   || true;;
+            7) exit 0;;
+            *) echo "Ungültig";;
+        esac
+    done
+}
+
+# ============================================================
+# Einstieg
+# ============================================================
+case "${1:-}" in
+    --backup-only) backup_main; exit $? ;;
+esac
+
+SELF_PATH="$(readlink -f "${BASH_SOURCE[0]:-/dev/null}" 2>/dev/null || echo "")"
+if [[ "$SELF_PATH" != "$INSTALL_MENU" ]]; then
+    echo "Bootstrap: installiere nach $INSTALL_MENU ..."
+    self_install
+    exec "$INSTALL_MENU" "$@"
+fi
+
+main_menu "$@"
