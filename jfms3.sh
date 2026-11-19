@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # jfms.sh — JFMS Verwaltung
-#   curl -fsSL 'https://raw.githubusercontent.com/<user>/<repo>/main/jfms.sh' | sudo bash
+#   curl -fsSL 'https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/jfms3.sh' | sudo bash
 
 set -Eeuo pipefail
 
 VERSION="v1.1.0"
-SELF_URL="https://raw.githubusercontent.com/<user>/<repo>/main/jfms.sh"
+SELF_URL="https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/jfms3.sh"
 
 INSTALL_MENU=/usr/local/sbin/jfms
 INSTALL_RCLONE=/usr/local/sbin/jfms-rclone-setup
