@@ -163,5 +163,5 @@ echo "Backup-Service und Timer wurden aktualisiert."
 ROOT
 ```
 ```
-sudo systemctl start jfms-config-backup.service; sudo systemctl status jfms-config-backup.service --no-pager -l; sudo journalctl -u jfms-config-backup.service -n 20 --no-pager; BACKUP=$(sudo find /mnt/internxt/backup -maxdepth 1 -type f -name 'jfms-config-*.tar' -printf '%T@ %p\n' | sort -nr | head -n1 | cut -d' ' -f2-); echo "Neuestes Backup: $BACKUP"; sudo ls -lh "$BACKUP"; sudo tar -tf "$BACKUP" | grep -E '^(\.env|compose\.yaml|config(/|$))'
+sudo systemctl start jfms-config-backup.service && sudo journalctl -u jfms-config-backup.service -n 30
 ```
