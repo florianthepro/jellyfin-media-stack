@@ -1,4 +1,5 @@
 ===== rclone-internxt.service ===== /etc/systemd/system/rclone-internxt.service
+```
 [Unit]
 Description=Internxt rclone mount for tcsoc
 Wants=network-online.target
@@ -20,17 +21,18 @@ KillMode=mixed
 
 [Install]
 WantedBy=multi-user.target
-
+```
 ===== override.conf ===== /etc/systemd/system/rclone-internxt.service.d/override.conf
+```
 [Service]
 MemoryLow=128M
 MemoryHigh=512M
 MemoryMax=768M
 MemorySwapMax=256M
 CPUWeight=100
-
+```
 ===== compose.yaml =====
-name: jellyfin-media-stack
+```
 services:
   portainer:
     image: portainer/portainer-ce:lts
@@ -59,8 +61,8 @@ services:
   tdarr:
     image: ghcr.io/haveagitgat/tdarr:latest
     container_name: tdarr
-    cpus: "0.7"
     environment: {TZ: "${TZ}", PUID: "${PUID}", PGID: "${PGID}", serverIP: "0.0.0.0", serverPort: "8266", webUIPort: "8265", internalNode: "true", inContainer: "true", auth: "true", apiKey: "${TDARR_API_KEY}"}
+    cpus: "0.7"
     volumes:
       - "./config/tdarr/server:/app/server"
       - "./config/tdarr/configs:/app/configs"
@@ -71,15 +73,15 @@ services:
     restart: unless-stopped
   iptv-epg:
     image: ghcr.io/iptv-org/epg:master
-    profiles: [disabled]
     container_name: iptv-epg
     environment: {TZ: "${TZ}", CRON_SCHEDULE: "30 2 * * *", DAYS: "7", RUN_AT_STARTUP: "true"}
     volumes:
       - "./data/iptv-epg/public:/epg/public"
-      - "${IPTV_CHANNELS_XML}:/epg/channels.xml:ro"
+      - "./config/iptv-epg/channels.xml:/epg/public/channels.xml:ro"
     restart: unless-stopped
-
+```
 ===== .env =====
+```
 NAME=jellyfin-media-stack
 PUID=1000
 PGID=1000
@@ -88,8 +90,9 @@ MEDIA=/mnt/internxt
 IPTV_CHANNELS_XML=/mnt/internxt/jellyfin/livetv/channels/all/channels.xml
 TDARR_API_KEY=
 CLOUDFLARE_API_KEY=
-
+```
 ===== backup =====
+```
 sudo bash <<'ROOT'
 set -euo pipefail
 
