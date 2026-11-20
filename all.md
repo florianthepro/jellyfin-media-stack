@@ -165,3 +165,6 @@ ROOT
 ```
 sudo systemctl start jfms-config-backup.service && sudo journalctl -u jfms-config-backup.service -n 30
 ```
+```
+sudo systemctl start jfms-config-backup.service && sudo journalctl -u jfms-config-backup.service --since "$(systemctl show jfms-config-backup.service -p ActiveEnterTimestamp --value)" --no-pager
+```
