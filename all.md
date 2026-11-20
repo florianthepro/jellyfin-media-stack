@@ -77,7 +77,7 @@ services:
     environment: {TZ: "${TZ}", CRON_SCHEDULE: "30 2 * * *", DAYS: "7", RUN_AT_STARTUP: "true"}
     volumes:
       - "./data/iptv-epg/public:/epg/public"
-      - "./config/iptv-epg/channels.xml:/epg/public/channels.xml:ro"
+      - "${IPTV_CHANNELS_XML}:/epg/public/channels.xml:ro"
     restart: unless-stopped
 ```
 ===== .env =====
@@ -87,7 +87,7 @@ PUID=1000
 PGID=1000
 TZ=Europe/Berlin
 MEDIA=/mnt/internxt
-IPTV_CHANNELS_XML=/mnt/internxt/jellyfin/livetv/channels/all/channels.xml
+IPTV_CHANNELS_XML=./config/iptv-epg/channels.xml
 TDARR_API_KEY=
 CLOUDFLARE_API_KEY=
 ```
