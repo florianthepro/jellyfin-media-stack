@@ -91,7 +91,7 @@ IPTV_CHANNELS_XML=./config/iptv-epg/channels.xml
 TDARR_API_KEY=
 CLOUDFLARE_API_KEY=
 ```
-===== backup =====
+===== create backup service command (blow is test command) =====
 ```
 sudo bash <<'ROOT'
 set -euo pipefail
@@ -99,17 +99,9 @@ set -euo pipefail
 cat > /usr/local/sbin/jfms-config-backup <<'SCRIPT'
 #!/usr/bin/env bash
 set -Eeuo pipefail
-#sudo systemctl start jfms-config-backup.service
+
 SRC=/opt/jfms
-MOUNT=/mnt/internxt
-DEST="$MOUNT/backup"
-
-exec 9>/run/lock/jfms-config-backup.lock
-flock -n 9 || { echo "Backup läuft bereits." >&2; exit 1; }
-
-mountpoint -q "$MOUNT" || { echo "FEHLER: $MOUNT ist nicht eingehängt" >&2; exit 1; }
-[[ -d "$SRC/config" ]] || { echo "FEHLER: $SRC/config fehlt" >&2; exit 1; }
-[[ -f "$SRC/compose.yaml" ]] || { echo "FEHLER: $SRC/compose.yaml fehlt" >&2; exit 1; }
+DEST=/mnt/internxt/backup
 
 mkdir -p "$DEST"
 umask 077
@@ -117,18 +109,19 @@ umask 077
 stamp=$(date +%Y%m%d-%H%M%S)
 out="$DEST/jfms-config-$stamp.tar"
 n=1
+
 while [[ -e "$out" ]]; do
   n=$((n + 1))
   out="$DEST/jfms-config-$stamp-v$n.tar"
 done
 
-tmp=$(mktemp "$DEST/.jfms-config-$stamp.XXXXXX")
-trap 'rm -f -- "$tmp"' EXIT
+tar --numeric-owner --acls --xattrs -cpf "$out" \
+  -C "$SRC" \
+  config \
+  compose.yaml \
+  .env
 
-tar --numeric-owner --acls --xattrs -cpf "$tmp" -C "$SRC" config compose.yaml
-tar -tf "$tmp" >/dev/null
-mv -- "$tmp" "$out"
-trap - EXIT
+tar -tf "$out" >/dev/null
 
 echo "Backup erstellt: $out"
 SCRIPT
@@ -137,14 +130,12 @@ chmod 0755 /usr/local/sbin/jfms-config-backup
 
 cat > /etc/systemd/system/jfms-config-backup.service <<'UNIT'
 [Unit]
-Description=JFMS-Konfigurationsbackup nach Internxt
-Requires=rclone-internxt.service
-After=rclone-internxt.service
+Description=JFMS-Konfigurationsbackup
 
 [Service]
 Type=oneshot
-User=tcsoc
-Group=tcsoc
+User=root
+Group=root
 UMask=0077
 ExecStart=/usr/local/sbin/jfms-config-backup
 TimeoutStartSec=20min
@@ -164,5 +155,13 @@ WantedBy=timers.target
 UNIT
 
 systemctl daemon-reload
+systemctl reset-failed jfms-config-backup.service || true
 systemctl enable --now jfms-config-backup.timer
+
+echo
+echo "Backup-Service und Timer wurden aktualisiert."
 ROOT
+```
+```
+sudo systemctl start jfms-config-backup.service; sudo systemctl status jfms-config-backup.service --no-pager -l; sudo journalctl -u jfms-config-backup.service -n 20 --no-pager; BACKUP=$(sudo find /mnt/internxt/backup -maxdepth 1 -type f -name 'jfms-config-*.tar' -printf '%T@ %p\n' | sort -nr | head -n1 | cut -d' ' -f2-); echo "Neuestes Backup: $BACKUP"; sudo ls -lh "$BACKUP"; sudo tar -tf "$BACKUP" | grep -E '^(\.env|compose\.yaml|config(/|$))'
+```
