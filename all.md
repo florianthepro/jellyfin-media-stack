@@ -99,7 +99,7 @@ set -euo pipefail
 cat > /usr/local/sbin/jfms-config-backup <<'SCRIPT'
 #!/usr/bin/env bash
 set -Eeuo pipefail
-
+#sudo systemctl start jfms-config-backup.service
 SRC=/opt/jfms
 MOUNT=/mnt/internxt
 DEST="$MOUNT/backup"
