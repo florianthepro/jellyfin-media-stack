@@ -93,6 +93,7 @@ Dashboard → Bibliothek → [Bibliothek] → Echtzeitüberwachung deaktivieren
 ```
 *(Gilt für jede Bibliothek einzeln. NFS unterstützt kein inotify, sonst kommt es zu Endlos-Scans.)*
 
+<!--
 ### 2.2 Jellyfin: M3U-Tuner (Workaround für NFS)
 Da `/media` im Container read-only ist, kann Jellyfin M3U-Dateien dort nicht verarbeiten. Der Workaround:
 ```bash
@@ -101,7 +102,7 @@ sudo cp /pfad/zur/playlist.m3u /opt/jfms/config/jellyfin/playlist.m3u
 sudo chown 1000:1000 /opt/jfms/config/jellyfin/playlist.m3u
 ```
 In Jellyfin als Pfad für den Tuner angeben: `/config/playlist.m3u`
-
+-->
 ### 2.3 Tdarr: Rechte testen
 ```bash
 sudo docker compose -f /opt/jfms/compose.yaml exec tdarr sh -c 'touch /media/tdarr/.w && rm /media/tdarr/.w && echo ok'
