@@ -1,3 +1,4 @@
+`curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/setup-rclone-nfs.sh | sudo bash`
 ===== rclone-internxt.service ===== /etc/systemd/system/rclone-internxt.service
 ```
 [Unit]
