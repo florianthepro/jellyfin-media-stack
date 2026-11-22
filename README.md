@@ -1,19 +1,46 @@
-`curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/setup-rclone-nfs.sh | sudo bash`
-===== rclone-internxt.service ===== /etc/systemd/system/rclone-internxt.service
+# JFMS – Jellyfin Media Stack
+
+Stack: Jellyfin · Tdarr · IPTV-EPG · Portainer · Cloudflared · Backup  
+Storage: Internxt via rclone NFS (`127.0.0.1:2049`)
+
+---
+
+## 1. Setup
+
+### 1.1 `.env` vorbereiten
+```bash
+cp beispiel.env .env
+sudo chmod 600 .env
 ```
+
+### 1.2 rclone NFS-Service anlegen
+```bash
+sudo mkdir -p /etc/rclone
+sudo install -o tcsoc -g tcsoc -m 640 /home/tcsoc/.config/rclone/rclone.conf /etc/rclone/rclone.conf
+sudo chown tcsoc:tcsoc /etc/rclone && sudo chmod 750 /etc/rclone
+
+sudo tee /etc/systemd/system/rclone.service >/dev/null <<'UNIT'
 [Unit]
-Description=Internxt rclone mount for tcsoc
+Description=Internxt rclone NFS Server
 Wants=network-online.target
 After=network-online.target
 Before=docker.service
-RequiresMountsFor=/mnt
 
 [Service]
-Type=notify
+Type=simple
 User=tcsoc
 Group=tcsoc
-ExecStart=/usr/bin/rclone mount internxt:media /mnt/internxt --config=/home/tcsoc/.config/rclone/rclone.conf --cache-dir=/var/cache/rclone-internxt --vfs-cache-mode=full --vfs-cache-max-age=5m --vfs-cache-max-size=5G --dir-cache-time=1m --buffer-size=16M --allow-other --default-permissions --umask=002 --log-level=INFO
-ExecStop=/bin/fusermount3 -uz /mnt/internxt
+ExecStart=/usr/bin/rclone serve nfs internxt:media \
+  --config=/etc/rclone/rclone.conf \
+  --addr 127.0.0.1:2049 \
+  --uid 1000 --gid 1000 --umask 002 \
+  --cache-dir=/var/cache/rclone-internxt \
+  --vfs-cache-mode=full \
+  --vfs-cache-max-age=5m \
+  --vfs-cache-max-size=5G \
+  --dir-cache-time=1m \
+  --nfs-cache-type=disk \
+  --log-level=INFO
 Restart=on-failure
 RestartSec=10
 TimeoutStartSec=90
@@ -22,150 +49,139 @@ KillMode=mixed
 
 [Install]
 WantedBy=multi-user.target
-```
-===== override.conf ===== /etc/systemd/system/rclone-internxt.service.d/override.conf
-```
+UNIT
+
+sudo mkdir -p /etc/systemd/system/rclone.service.d
+sudo tee /etc/systemd/system/rclone.service.d/override.conf >/dev/null <<'UNIT'
 [Service]
 MemoryLow=128M
 MemoryHigh=512M
 MemoryMax=768M
 MemorySwapMax=256M
 CPUWeight=100
-```
-===== compose.yaml =====
-```
-services:
-  portainer:
-    image: portainer/portainer-ce:lts
-    container_name: portainer
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock"
-      - "./config/portainer:/data"
-    restart: always
-  cloudflared:
-    profiles: [always-active]
-    image: cloudflare/cloudflared:latest
-    container_name: cloudflared
-    command: ["tunnel", "--no-autoupdate", "run", "--token", "${CLOUDFLARE_API_KEY}"]
-    extra_hosts: ["host.docker.internal:host-gateway"]
-    restart: always
-  jellyfin:
-    image: jellyfin/jellyfin:latest
-    container_name: jellyfin
-    environment: {TZ: "${TZ}"}
-    volumes:
-      - "./config/jellyfin/config:/config"
-      - "./data/jellyfin/cache:/cache"
-      - "${MEDIA}:/media:ro"
-      - "${MEDIA}/jellyfin/livetv/recordings:/media/jellyfin/livetv/recordings:rw"
-    restart: unless-stopped
-  tdarr:
-    image: ghcr.io/haveagitgat/tdarr:latest
-    container_name: tdarr
-    environment: {TZ: "${TZ}", PUID: "${PUID}", PGID: "${PGID}", serverIP: "0.0.0.0", serverPort: "8266", webUIPort: "8265", internalNode: "true", inContainer: "true", auth: "true", apiKey: "${TDARR_API_KEY}"}
-    cpus: "0.7"
-    volumes:
-      - "./config/tdarr/server:/app/server"
-      - "./config/tdarr/configs:/app/configs"
-      - "./data/tdarr/logs:/app/logs"
-      - "./data/tdarr/temp:/temp"
-      - "${MEDIA}:/media:ro"
-      - "${MEDIA}/tdarr:/media/tdarr:rw"
-    restart: unless-stopped
-  iptv-epg:
-    image: ghcr.io/iptv-org/epg:master
-    container_name: iptv-epg
-    environment: {TZ: "${TZ}", CRON_SCHEDULE: "30 2 * * *", DAYS: "7", RUN_AT_STARTUP: "true"}
-    volumes:
-      - "./data/iptv-epg/public:/epg/public"
-      - "${IPTV_CHANNELS_XML}:/epg/public/channels.xml:ro"
-    restart: unless-stopped
-```
-===== .env =====
-```
-NAME=jellyfin-media-stack
-PUID=1000
-PGID=1000
-TZ=Europe/Berlin
-MEDIA=/mnt/internxt
-IPTV_CHANNELS_XML=./config/iptv-epg/channels.xml
-TDARR_API_KEY=
-CLOUDFLARE_API_KEY=
-```
-===== create backup service command (blow is test command) =====
-```
-sudo bash <<'ROOT'
-set -euo pipefail
-
-cat > /usr/local/sbin/jfms-config-backup <<'SCRIPT'
-#!/usr/bin/env bash
-set -Eeuo pipefail
-
-SRC=/opt/jfms
-DEST=/mnt/internxt/backup
-
-mkdir -p "$DEST"
-umask 077
-
-stamp=$(date +%Y%m%d-%H%M%S)
-out="$DEST/jfms-config-$stamp.tar"
-n=1
-
-while [[ -e "$out" ]]; do
-  n=$((n + 1))
-  out="$DEST/jfms-config-$stamp-v$n.tar"
-done
-
-tar --numeric-owner --acls --xattrs -cpf "$out" \
-  -C "$SRC" \
-  config \
-  compose.yaml \
-  .env
-
-tar -tf "$out" >/dev/null
-
-echo "Backup erstellt: $out"
-SCRIPT
-
-chmod 0755 /usr/local/sbin/jfms-config-backup
-
-cat > /etc/systemd/system/jfms-config-backup.service <<'UNIT'
-[Unit]
-Description=JFMS-Konfigurationsbackup
-
-[Service]
-Type=oneshot
-User=root
-Group=root
-UMask=0077
-ExecStart=/usr/local/sbin/jfms-config-backup
-TimeoutStartSec=20min
 UNIT
 
-cat > /etc/systemd/system/jfms-config-backup.timer <<'UNIT'
-[Unit]
-Description=Tägliches JFMS-Konfigurationsbackup um 02:00
-
-[Timer]
-OnCalendar=*-*-* 02:00:00
-Persistent=true
-Unit=jfms-config-backup.service
-
-[Install]
-WantedBy=timers.target
-UNIT
-
-systemctl daemon-reload
-systemctl reset-failed jfms-config-backup.service || true
-systemctl enable --now jfms-config-backup.timer
-
-echo
-echo "Backup-Service und Timer wurden aktualisiert."
-ROOT
+sudo systemctl daemon-reload
+sudo systemctl enable --now rclone.service
 ```
+
+### 1.3 NFS mounten
+```bash
+sudo mkdir -p /mnt/internxt
+sudo mount -t nfs -o port=2049,mountport=2049,tcp,nfsvers=3 127.0.0.1:/ /mnt/internxt
 ```
-sudo systemctl start jfms-config-backup.service && sudo journalctl -u jfms-config-backup.service -n 30
+
+### 1.4 Persistenten Mount einrichten (Reboot-fest)
+```bash
+echo '127.0.0.1:/ /mnt/internxt nfs port=2049,mountport=2049,tcp,nfsvers=3,hard,timeo=600,retrans=2,_netdev,noauto,x-systemd.automount 0 0' | sudo tee -a /etc/fstab
+sudo systemctl daemon-reload
 ```
+
+### 1.5 Stack starten
+```bash
+cd /opt/jfms
+sudo docker compose up -d
 ```
-sudo systemctl start jfms-config-backup.service && sudo journalctl -u jfms-config-backup.service --since "$(systemctl show jfms-config-backup.service -p ActiveEnterTimestamp --value)" --no-pager
+
+---
+
+## 2. Wichtige Einstellungen (Jellyfin & Tdarr)
+
+### 2.1 Jellyfin: Echtzeitüberwachung AUS
+```
+Dashboard → Bibliothek → [Bibliothek] → Echtzeitüberwachung deaktivieren
+```
+*(Gilt für jede Bibliothek einzeln. NFS unterstützt kein inotify, sonst kommt es zu Endlos-Scans.)*
+
+### 2.2 Jellyfin: M3U-Tuner (Workaround für NFS)
+Da `/media` im Container read-only ist, kann Jellyfin M3U-Dateien dort nicht verarbeiten. Der Workaround:
+```bash
+# M3U-Datei in das Config-Verzeichnis legen
+sudo cp /pfad/zur/playlist.m3u /opt/jfms/config/jellyfin/playlist.m3u
+sudo chown 1000:1000 /opt/jfms/config/jellyfin/playlist.m3u
+```
+In Jellyfin als Pfad für den Tuner angeben: `/config/playlist.m3u`
+
+### 2.3 Tdarr: Rechte testen
+```bash
+sudo docker compose -f /opt/jfms/compose.yaml exec tdarr sh -c 'touch /media/tdarr/.w && rm /media/tdarr/.w && echo ok'
+```
+
+---
+
+## 3. Manuelle Befehle
+
+### 3.1 Kompletter Force-Reset (Nur dieses Projekt!)
+Löscht alle Container, Netzwerke und Volumes des JFMS-Stacks, auch wenn sie hängen oder unhealthy sind. **Keine Gefahr für andere Host-Projekte.**
+
+```bash
+cd /opt/jfms
+# 1. Alle Container des Stacks brutal stoppen und löschen
+sudo docker compose down --remove-orphans || true
+sudo docker rm -f $(sudo docker compose ps -aq) 2>/dev/null || true
+
+# 2. Stack komplett neu bauen und starten
+sudo docker compose up -d --force-recreate
+```
+
+### 3.2 Backup wiederherstellen (Restore)
+**Schritt 1:** Backup in ein temporäres Verzeichnis entpacken
+```bash
+# Pfad zum gewünschten Backup anpassen
+export BACKUP_FILE=/mnt/internxt/backup/jfms-config-YYYYMMDD-HHMMSS.tar
+sudo rm -rf /tmp/jfms-restore
+sudo mkdir -p /tmp/jfms-restore
+sudo tar -xf "$BACKUP_FILE" -C /tmp/jfms-restore
+```
+
+**Schritt 2:** Kettenbefehl zum Einspielen und Neustart
+```bash
+cd /opt/jfms && \
+sudo cp -a /tmp/jfms-restore/config/* ./config/ && \
+sudo cp -a /tmp/jfms-restore/compose.yaml ./compose.yaml && \
+sudo cp -a /tmp/jfms-restore/.env ./.env && \
+sudo cp -a /tmp/jfms-restore/rclone/rclone.conf /etc/rclone/rclone.conf && \
+sudo chown -R 1000:1000 ./config/jellyfin && \
+sudo docker compose up -d --force-recreate
+```
+
+### 3.3 Einzelne Dateien aus einem Backup wiederherstellen
+```bash
+# Nur eine bestimmte Datei aus dem Tar extrahieren
+sudo tar -xf /mnt/internxt/backup/jfms-config-YYYYMMDD-HHMMSS.tar -C /tmp/jfms-restore config/jellyfin/config/system.xml
+
+# Datei an ihren Bestimmungsort kopieren
+sudo cp /tmp/jfms-restore/config/jellyfin/config/system.xml /opt/jfms/config/jellyfin/config/system.xml
+```
+
+### 3.4 Backup manuell anstoßen & prüfen
+```bash
+# Backup manuell starten
+sudo docker compose -f /opt/jfms/compose.yaml exec backup /usr/local/bin/backup.sh
+
+# Log prüfen
+sudo docker logs jfms-backup --tail 50
+
+# Backups auflisten
+ls -lt /mnt/internxt/backup/*.tar | head
+
+# Prüfen ob rclone.conf im Backup ist
+sudo tar -tf $(ls -t /mnt/internxt/backup/*.tar | head -1) | grep '^rclone/'
+```
+
+### 3.5 rclone / NFS Fehlerbehebung
+```bash
+# Status prüfen
+sudo systemctl status rclone.service
+sudo journalctl -u rclone.service -n 50 --no-pager
+
+# VFS-Cache leeren (bei "Max space used" Fehlern)
+sudo systemctl stop rclone.service
+sudo rm -rf /var/cache/rclone-internxt/*
+sudo systemctl start rclone.service
+sudo umount -l /mnt/internxt
+sudo mount -t nfs -o port=2049,mountport=2049,tcp,nfsvers=3 127.0.0.1:/ /mnt/internxt
+
+# Speicherplatz auf Internxt prüfen
+sudo -u tcsoc rclone about internxt: --config /etc/rclone/rclone.conf
 ```

@@ -1,0 +1,62 @@
+name: jellyfin-media-stack
+services:
+  portainer:
+    image: portainer/portainer-ce:lts
+    container_name: portainer
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./config/portainer:/data"
+    restart: always
+  cloudflared:
+    profiles: [always-active]
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    command: ["tunnel", "--no-autoupdate", "run", "--token", "${CLOUDFLARE_API_KEY}"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    restart: always
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    environment: {TZ: "${TZ}"}
+    volumes:
+      - "./config/jellyfin/config:/config"
+      - "./data/jellyfin/cache:/cache"
+      - "${MEDIA}:/media:ro"
+      - "${MEDIA}/jellyfin/livetv/recordings:/media/jellyfin/livetv/recordings:rw"
+    restart: unless-stopped
+  tdarr:
+    image: ghcr.io/haveagitgat/tdarr:latest
+    container_name: tdarr
+    environment: {TZ: "${TZ}", PUID: "${PUID}", PGID: "${PGID}", serverIP: "0.0.0.0", serverPort: "8266", webUIPort: "8265", internalNode: "true", inContainer: "true", auth: "true", apiKey: "${TDARR_API_KEY}"}
+    cpus: "0.7"
+    volumes:
+      - "./config/tdarr/server:/app/server"
+      - "./config/tdarr/configs:/app/configs"
+      - "./data/tdarr/logs:/app/logs"
+      - "./data/tdarr/temp:/temp"
+      - "${MEDIA}:/media:ro"
+      - "${MEDIA}/tdarr:/media/tdarr:rw"
+    restart: unless-stopped
+  iptv-epg:
+    image: ghcr.io/iptv-org/epg:master
+    container_name: iptv-epg
+    environment: {TZ: "${TZ}", CRON_SCHEDULE: "30 2 * * *", DAYS: "7", RUN_AT_STARTUP: "true"}
+    volumes:
+      - "./data/iptv-epg/public:/epg/public"
+      - "${IPTV_CHANNELS_XML}:/epg/public/channels.xml:ro"
+    restart: unless-stopped
+  backup:
+    image: alpine:3.20
+    container_name: jfms-backup
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    environment:
+      TZ: "${TZ}"
+    volumes:
+      - "./config/backup/entrypoint.sh:/entrypoint.sh:ro"
+      - "./config/backup/backup.sh:/usr/local/bin/backup.sh:ro"
+      - "./config:/backup-src/config:ro"
+      - "./compose.yaml:/backup-src/compose.yaml:ro"
+      - "./.env:/backup-src/.env:ro"
+      - "${RCLONE_CONF_DIR}:/backup-src/rclone:ro"
+      - "${BACKUP_DIR}:/backup-dest"
+    restart: unless-stopped
