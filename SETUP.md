@@ -1,85 +1,88 @@
-# Setup – JFMS (Jellyfin Media Stack)
+## 0. Voraussetzungen
 
-Dieses Dokument enthält ausschließlich die Schritte zur Ersteinrichtung.
-Für Wartung, Fehlerbehebung und manuelle Befehle siehe `README.md`.
-
-## Voraussetzungen
-
-```bash
-sudo apt update
-sudo apt install -y nfs-common rclone docker.io docker-compose-plugin curl
-```
-
-- User `tcsoc` existiert und hat ein funktionierendes rclone-Remote `internxt:media`.
-- Zielverzeichnis für den Stack: `/opt/jfms`
+- Docker und Docker Compose sind installiert.
+- Die Ordnerstruktur auf deinem Speichermedium (z.B. Internxt) ist bereits angelegt.
 
 ## 1. Projektverzeichnis vorbereiten
 
 ```bash
+sudo apt update
+sudo apt install -y curl nfs-common rclone micro
+
 sudo mkdir -p /opt/jfms
-sudo chown tcsoc:tcsoc /opt/jfms
+sudo chown $USER:$USER /opt/jfms
 cd /opt/jfms
 ```
 
 ## 2. Docker-Konfiguration beziehen
 
 ```bash
-# Compose-Datei
-sudo curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/src/docker/compose.yaml \
-  -o /opt/jfms/compose.yaml
+# Compose-Datei und Beispiel-.env herunterladen
+curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/src/docker/compose.yaml -o /opt/jfms/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/src/docker/beispiel.env -o /opt/jfms/beispiel.env
 
-# Beispiel-.env
-sudo curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/src/docker/beispiel.env \
-  -o /opt/jfms/beispiel.env
-
-# .env aus Beispiel erstellen
+# .env aus dem Beispiel erstellen
 cp /opt/jfms/beispiel.env /opt/jfms/.env
 sudo chmod 600 /opt/jfms/.env
 ```
 
-> **Hinweis:** Passe die Werte in `/opt/jfms/.env` an (insbesondere `PUID`, `PGID`, `TZ` und API-Keys).
-
-## 3. rclone NFS-Service einrichten
+## 3. .env anpassen
 
 ```bash
-# rclone-Config an einen systemweiten Ort kopieren
+sudo micro /opt/jfms/.env
+```
+Trage hier deine `PUID`, `PGID`, `TZ`, API-Keys und den Pfad zur `IPTV_CHANNELS_XML` ein. 
+*Hinweis: Der Pfad für `MEDIA` steht standardmäßig auf `/mnt/internxt`. Wenn du einen anderen Mount-Punkt nutzt, passe ihn hier an.*
+
+## 4. Media-Mount einrichten
+
+**Überspringe diesen Schritt**, wenn du deine Medien bereits über ein anderes System (z.B. SMB, lokal, anderes NFS) unter dem in der `.env` angegebenen Pfad (`/mnt/internxt`) eingebunden hast.
+
+### 4.1 rclone NFS (Standard für Internxt)
+
+```bash
+# 1. rclone-Config an einen systemweiten Ort kopieren
 sudo mkdir -p /etc/rclone
-sudo install -o tcsoc -g tcsoc -m 640 /home/tcsoc/.config/rclone/rclone.conf /etc/rclone/rclone.conf
-sudo chown tcsoc:tcsoc /etc/rclone
+sudo install -o $USER -g $USER -m 640 /home/$USER/.config/rclone/rclone.conf /etc/rclone/rclone.conf
+sudo chown $USER:$USER /etc/rclone
 sudo chmod 750 /etc/rclone
 
-# Service-Dateien aus dem Repo beziehen
-sudo curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/src/rclone/rclone.service \
-  -o /etc/systemd/system/rclone.service
-
+# 2. Service-Dateien aus dem Repo beziehen
+sudo curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/src/rclone/rclone.service -o /etc/systemd/system/rclone.service
 sudo mkdir -p /etc/systemd/system/rclone.service.d
-sudo curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/src/rclone/override.conf \
-  -o /etc/systemd/system/rclone.service.d/override.conf
+sudo curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/src/rclone/override.conf -o /etc/systemd/system/rclone.service.d/override.conf
 
+# 3. User in der Service-Datei auf den aktuellen Benutzer anpassen
+sudo sed -i "s/User=tcsoc/User=$USER/g" /etc/systemd/system/rclone.service
+sudo sed -i "s/Group=tcsoc/Group=$USER/g" /etc/systemd/system/rclone.service
+
+# 4. Service starten
 sudo systemctl daemon-reload
 sudo systemctl enable --now rclone.service
-```
 
-## 4. NFS mounten
-
-```bash
+# 5. NFS mounten
 sudo mkdir -p /mnt/internxt
 sudo mount -t nfs -o port=2049,mountport=2049,tcp,nfsvers=3 127.0.0.1:/ /mnt/internxt
-```
 
-## 5. Persistenten Mount einrichten (Reboot-fest)
-
-```bash
+# 6. Persistenten Mount einrichten (Reboot-fest)
 echo '127.0.0.1:/ /mnt/internxt nfs port=2049,mountport=2049,tcp,nfsvers=3,hard,timeo=600,retrans=2,_netdev,noauto,x-systemd.automount 0 0' | sudo tee -a /etc/fstab
 sudo systemctl daemon-reload
 ```
 
-## 6. Stack starten
+## 5. Stack starten
 
 ```bash
 cd /opt/jfms
 sudo docker compose up -d
 ```
+
+## 6. Wichtig für Jellyfin (Nach dem Start)
+
+Wenn du rclone NFS oder einen anderen Netzwerk-Mount nutzt, **musst** du in Jellyfin die Echtzeitüberwachung deaktivieren:
+```
+Dashboard → Bibliothek → [Bibliothek] → Echtzeitüberwachung AUS
+```
+Andernfalls kann Jellyfin keine Änderungen erkennen und erzeugt massive Log-Fehler.
 ```
 
 ---
@@ -90,25 +93,19 @@ sudo docker compose up -d
 # JFMS – Jellyfin Media Stack
 
 Stack: Jellyfin · Tdarr · IPTV-EPG · Portainer · Cloudflared · Backup  
-Storage: Internxt via rclone NFS (`127.0.0.1:2049`)
+Storage: Standardmäßig Internxt via rclone NFS (`127.0.0.1:2049`)
 
 ---
 
 ## 1. Einleitung
 
 Dieses Repository stellt einen Docker-Compose-Stack für Jellyfin bereit.
-Die Medien liegen auf der Internxt-Cloud und werden über `rclone serve nfs`
-als NFS-Mount nach `/mnt/internxt` eingebunden. Ein tägliches Backup der
-Konfiguration läuft als eigener Container.
+Die Medien werden über einen externen Mount (Standard: `rclone serve nfs`) nach `/mnt/internxt` eingebunden. Ein tägliches Backup der Konfiguration läuft als eigener Container.
 
 **Wichtige Design-Entscheidungen:**
-- `/media` ist im Container **read-only** – nur der Aufnahmeordner
-  (`/media/jellyfin/livetv/recordings`) und der Tdarr-Ordner
-  (`/media/tdarr`) sind beschreibbar.
-- Der NFS-Server läuft lokal auf `127.0.0.1:2049` und ist nicht nach außen
-  exponiert.
-- Die rclone-Config liegt unter `/etc/rclone/rclone.conf`, damit der
-  Dienst sie lesen (und für Token-Refresh schreiben) kann.
+- `/media` ist im Container **read-only** – nur der Aufnahmeordner (`/media/jellyfin/livetv/recordings`) und der Tdarr-Ordner (`/media/tdarr`) sind beschreibbar.
+- Der NFS-Server läuft lokal auf `127.0.0.1:2049` und ist nicht nach außen exponiert.
+- Die rclone-Config liegt unter `/etc/rclone/rclone.conf`, damit der Dienst sie lesen (und für Token-Refresh schreiben) kann.
 
 Die Ersteinrichtung ist in `setup.md` beschrieben.
 
@@ -120,12 +117,10 @@ Die Ersteinrichtung ist in `setup.md` beschrieben.
 ```
 Dashboard → Bibliothek → [Bibliothek] → Echtzeitüberwachung AUS
 ```
-Gilt für **jede** Bibliothek einzeln. NFS unterstützt kein `inotify`;
-andernfalls kommt es zu Endlos-Scans und Log-Fehlern.
+Gilt für **jede** Bibliothek einzeln, wenn ein Netzwerk-Mount (NFS/SMB) genutzt wird. Andernfalls kommt es zu Endlos-Scans und Log-Fehlern.
 
 ### 2.2 Jellyfin: M3U-Tuner (Workaround)
-Da `/media` read-only ist, kann Jellyfin M3U-Dateien dort nicht
-verarbeiten. Der Workaround:
+Da `/media` read-only ist, kann Jellyfin M3U-Dateien dort nicht verarbeiten. Der Workaround:
 
 ```bash
 sudo cp /pfad/zur/playlist.m3u /opt/jfms/config/jellyfin/playlist.m3u
@@ -145,9 +140,7 @@ sudo docker compose -f /opt/jfms/compose.yaml exec tdarr \
 ## 3. Manuelle Befehle
 
 ### 3.1 Kompletter Force-Reset (Nur dieses Projekt!)
-Löscht alle Container, Netzwerke und Volumes des JFMS-Stacks – auch
-hängen gebliebene oder unhealthy Container. Andere Host-Projekte
-bleiben unberührt.
+Löscht alle Container, Netzwerke und Volumes des JFMS-Stacks – auch hängen gebliebene oder unhealthy Container. Andere Host-Projekte bleiben unberührt.
 
 ```bash
 cd /opt/jfms
@@ -222,5 +215,6 @@ sudo umount -l /mnt/internxt
 sudo mount -t nfs -o port=2049,mountport=2049,tcp,nfsvers=3 127.0.0.1:/ /mnt/internxt
 
 # Speicherplatz auf Internxt prüfen
-sudo -u tcsoc rclone about internxt: --config /etc/rclone/rclone.conf
+rclone about internxt: --config /etc/rclone/rclone.conf
+```
 ```
