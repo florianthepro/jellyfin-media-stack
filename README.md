@@ -1,83 +1,56 @@
 # JFMS – Jellyfin Media Stack
 
+> **Wichtig:** Dieses README beschreibt die Einrichtung des Docker-Stacks, die Jellyfin-Einstellungen und die Wartung.  
+> **Für die Einbindung der Medien via rclone (Internxt) siehe [SETUP-RCLONE.md](./SETUP-RCLONE.md).** (Diesen Schritt überspringen, wenn bereits ein anderes Netzwerk-Laufwerk unter `/mnt/internxt` eingebunden ist).
+
 Stack: Jellyfin · Tdarr · IPTV-EPG · Portainer · Cloudflared · Backup  
-Storage: Internxt via rclone NFS (`127.0.0.1:2049`)
+Storage: Externer Mount unter `/mnt/internxt`
 
 ---
 
-## 1. Setup
+## 1. Architektur & Design-Entscheidungen
 
-### 1.1 `.env` vorbereiten
+- **Read-Only Schutz:** Das gesamte `/media`-Verzeichnis ist im Container read-only (`:ro`). Nur der Aufnahmeordner (`/media/jellyfin/livetv/`) und der Tdarr-Ordner (`/media/tdarr/`) sind read-write (`:rw`). Dies erfordert zwei separate Volume-Mounts in der `compose.yaml`.
+- **Config-Speicherort:** Die rclone-Config (falls genutzt) liegt unter `/etc/rclone/rclone.conf`, damit der Dienst sie lesen und für Token-Refresh schreiben kann.
+
+---
+
+## 2. Setup (Docker Stack)
+
+### 2.1 Voraussetzungen & Docker installieren
+Ein frisches Debian-System wird vorausgesetzt. Docker und Compose müssen installiert sein:
 ```bash
-cp beispiel.env .env
-sudo chmod 600 .env
+sudo apt update
+sudo apt install -y curl docker.io docker-compose-plugin micro
+sudo systemctl enable --now docker
 ```
 
-### 1.2 rclone NFS-Service anlegen
+### 2.2 Projektverzeichnis vorbereiten
 ```bash
-sudo mkdir -p /etc/rclone
-sudo install -o tcsoc -g tcsoc -m 640 /home/tcsoc/.config/rclone/rclone.conf /etc/rclone/rclone.conf
-sudo chown tcsoc:tcsoc /etc/rclone && sudo chmod 750 /etc/rclone
-
-sudo tee /etc/systemd/system/rclone.service >/dev/null <<'UNIT'
-[Unit]
-Description=Internxt rclone NFS Server
-Wants=network-online.target
-After=network-online.target
-Before=docker.service
-
-[Service]
-Type=simple
-User=tcsoc
-Group=tcsoc
-ExecStart=/usr/bin/rclone serve nfs internxt:media \
-  --config=/etc/rclone/rclone.conf \
-  --addr 127.0.0.1:2049 \
-  --uid 1000 --gid 1000 --umask 002 \
-  --cache-dir=/var/cache/rclone-internxt \
-  --vfs-cache-mode=full \
-  --vfs-cache-max-age=5m \
-  --vfs-cache-max-size=5G \
-  --dir-cache-time=1m \
-  --nfs-cache-type=disk \
-  --log-level=INFO
-Restart=on-failure
-RestartSec=10
-TimeoutStartSec=90
-TimeoutStopSec=30
-KillMode=mixed
-
-[Install]
-WantedBy=multi-user.target
-UNIT
-
-sudo mkdir -p /etc/systemd/system/rclone.service.d
-sudo tee /etc/systemd/system/rclone.service.d/override.conf >/dev/null <<'UNIT'
-[Service]
-MemoryLow=128M
-MemoryHigh=512M
-MemoryMax=768M
-MemorySwapMax=256M
-CPUWeight=100
-UNIT
-
-sudo systemctl daemon-reload
-sudo systemctl enable --now rclone.service
+sudo mkdir -p /opt/jfms
+sudo chown $USER:$USER /opt/jfms
+cd /opt/jfms
 ```
 
-### 1.3 NFS mounten
+### 2.3 Docker-Konfiguration beziehen
 ```bash
-sudo mkdir -p /mnt/internxt
-sudo mount -t nfs -o port=2049,mountport=2049,tcp,nfsvers=3 127.0.0.1:/ /mnt/internxt
+# Compose-Datei und Beispiel-.env herunterladen
+curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/src/docker/compose.yaml -o /opt/jfms/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/src/docker/beispiel.env -o /opt/jfms/beispiel.env
+
+# .env aus dem Beispiel erstellen
+cp /opt/jfms/beispiel.env /opt/jfms/.env
+sudo chmod 600 /opt/jfms/.env
 ```
 
-### 1.4 Persistenten Mount einrichten (Reboot-fest)
+### 2.4 .env anpassen
 ```bash
-echo '127.0.0.1:/ /mnt/internxt nfs port=2049,mountport=2049,tcp,nfsvers=3,hard,timeo=600,retrans=2,_netdev,noauto,x-systemd.automount 0 0' | sudo tee -a /etc/fstab
-sudo systemctl daemon-reload
+sudo micro /opt/jfms/.env
 ```
+Trage hier deine `PUID`, `PGID`, `TZ`, API-Keys und den Pfad zur `IPTV_CHANNELS_XML` ein. 
+*Hinweis: Der Pfad für `MEDIA` steht standardmäßig auf `/mnt/internxt`. Wenn du ein anderes Laufwerk nutzt, passe ihn hier an.*
 
-### 1.5 Stack starten
+### 2.5 Stack starten
 ```bash
 cd /opt/jfms
 sudo docker compose up -d
@@ -85,38 +58,38 @@ sudo docker compose up -d
 
 ---
 
-## 2. Wichtige Einstellungen (Jellyfin & Tdarr)
+## 3. Wichtige Einstellungen (Jellyfin & Tdarr)
 
-### 2.1 Jellyfin: Echtzeitüberwachung AUS
+### 3.1 Jellyfin: Echtzeitüberwachung deaktivieren
+Wenn ein Netzwerk-Mount (NFS/SMB) genutzt wird, **muss** die Echtzeitüberwachung deaktiviert werden, da sonst Endlos-Scans und massive Log-Fehler auftreten:
 ```
-Dashboard → Bibliothek → [Bibliothek] → Echtzeitüberwachung deaktivieren
+Dashboard → Bibliothek → [Bibliothek] → Echtzeitüberwachung AUS
 ```
-*(Gilt für jede Bibliothek einzeln. NFS unterstützt kein inotify, sonst kommt es zu Endlos-Scans.)*
+*(Gilt für jede Bibliothek einzeln).*
 
-<!--
-### 2.2 Jellyfin: M3U-Tuner (Workaround für NFS)
-Da `/media` im Container read-only ist, kann Jellyfin M3U-Dateien dort nicht verarbeiten. Der Workaround:
+### 3.2 Jellyfin: M3U-Tuner (Workaround)
+Da `/media` read-only ist, kann Jellyfin M3U-Dateien dort nicht verarbeiten. Der Workaround:
 ```bash
-# M3U-Datei in das Config-Verzeichnis legen
 sudo cp /pfad/zur/playlist.m3u /opt/jfms/config/jellyfin/playlist.m3u
 sudo chown 1000:1000 /opt/jfms/config/jellyfin/playlist.m3u
 ```
 In Jellyfin als Pfad für den Tuner angeben: `/config/playlist.m3u`
--->
-### 2.3 Tdarr: Rechte testen
+
+### 3.3 Tdarr: Schreibrechte testen
 ```bash
-sudo docker compose -f /opt/jfms/compose.yaml exec tdarr sh -c 'touch /media/tdarr/.w && rm /media/tdarr/.w && echo ok'
+sudo docker compose -f /opt/jfms/compose.yaml exec tdarr \
+  sh -c 'touch /media/tdarr/.w && rm /media/tdarr/.w && echo ok'
 ```
 
 ---
 
-## 3. Manuelle Befehle
+## 4. Manuelle Befehle (Wartung & Fehlerbehebung)
 
-### 3.1 Kompletter Force-Reset (Nur dieses Projekt!)
-Löscht alle Container, Netzwerke und Volumes des JFMS-Stacks, auch wenn sie hängen oder unhealthy sind. **Keine Gefahr für andere Host-Projekte.**
-
+### 4.1 Kompletter Force-Reset (Nur dieses Projekt!)
+Löscht alle Container, Netzwerke und Volumes des JFMS-Stacks – auch hängen gebliebene oder unhealthy Container. Andere Host-Projekte bleiben unberührt.
 ```bash
 cd /opt/jfms
+
 # 1. Alle Container des Stacks brutal stoppen und löschen
 sudo docker compose down --remove-orphans || true
 sudo docker rm -f $(sudo docker compose ps -aq) 2>/dev/null || true
@@ -125,7 +98,8 @@ sudo docker rm -f $(sudo docker compose ps -aq) 2>/dev/null || true
 sudo docker compose up -d --force-recreate
 ```
 
-### 3.2 Backup wiederherstellen (Restore)
+### 4.2 Backup wiederherstellen (Restore)
+
 **Schritt 1:** Backup in ein temporäres Verzeichnis entpacken
 ```bash
 # Pfad zum gewünschten Backup anpassen
@@ -146,16 +120,18 @@ sudo chown -R 1000:1000 ./config/jellyfin && \
 sudo docker compose up -d --force-recreate
 ```
 
-### 3.3 Einzelne Dateien aus einem Backup wiederherstellen
+### 4.3 Einzelne Dateien aus einem Backup wiederherstellen
 ```bash
 # Nur eine bestimmte Datei aus dem Tar extrahieren
-sudo tar -xf /mnt/internxt/backup/jfms-config-YYYYMMDD-HHMMSS.tar -C /tmp/jfms-restore config/jellyfin/config/system.xml
+sudo tar -xf /mnt/internxt/backup/jfms-config-YYYYMMDD-HHMMSS.tar \
+  -C /tmp/jfms-restore config/jellyfin/config/system.xml
 
 # Datei an ihren Bestimmungsort kopieren
-sudo cp /tmp/jfms-restore/config/jellyfin/config/system.xml /opt/jfms/config/jellyfin/config/system.xml
+sudo cp /tmp/jfms-restore/config/jellyfin/config/system.xml \
+  /opt/jfms/config/jellyfin/config/system.xml
 ```
 
-### 3.4 Backup manuell anstoßen & prüfen
+### 4.4 Backup manuell anstoßen & prüfen
 ```bash
 # Backup manuell starten
 sudo docker compose -f /opt/jfms/compose.yaml exec backup /usr/local/bin/backup.sh
@@ -170,19 +146,16 @@ ls -lt /mnt/internxt/backup/*.tar | head
 sudo tar -tf $(ls -t /mnt/internxt/backup/*.tar | head -1) | grep '^rclone/'
 ```
 
-### 3.5 rclone / NFS Fehlerbehebung
+### 4.5 rclone / NFS Fehlerbehebung
 ```bash
 # Status prüfen
 sudo systemctl status rclone.service
 sudo journalctl -u rclone.service -n 50 --no-pager
 
-# VFS-Cache leeren (bei "Max space used" Fehlern)
+# VFS-Cache leeren (bei "Max space used"-Fehlern)
 sudo systemctl stop rclone.service
 sudo rm -rf /var/cache/rclone-internxt/*
 sudo systemctl start rclone.service
 sudo umount -l /mnt/internxt
 sudo mount -t nfs -o port=2049,mountport=2049,tcp,nfsvers=3 127.0.0.1:/ /mnt/internxt
-
-# Speicherplatz auf Internxt prüfen
-sudo -u tcsoc rclone about internxt: --config /etc/rclone/rclone.conf
 ```
