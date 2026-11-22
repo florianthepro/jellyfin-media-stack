@@ -1,0 +1,29 @@
+[Unit]
+Description=Internxt rclone NFS Server
+Wants=network-online.target
+After=network-online.target
+Before=docker.service
+
+[Service]
+Type=simple
+User=tcsoc
+Group=tcsoc
+ExecStart=/usr/bin/rclone serve nfs internxt:media \
+  --config=/etc/rclone/rclone.conf \
+  --addr 127.0.0.1:2049 \
+  --uid 1000 --gid 1000 --umask 002 \
+  --cache-dir=/var/cache/rclone-internxt \
+  --vfs-cache-mode=full \
+  --vfs-cache-max-age=5m \
+  --vfs-cache-max-size=5G \
+  --dir-cache-time=1m \
+  --nfs-cache-type=disk \
+  --log-level=INFO
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=90
+TimeoutStopSec=30
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target
