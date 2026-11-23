@@ -64,6 +64,7 @@ services:
   seerr:
     image: ghcr.io/seerr-team/seerr:latest
     container_name: seerr
+    init: true
     environment:
       TZ: "${TZ}"
     ports:
