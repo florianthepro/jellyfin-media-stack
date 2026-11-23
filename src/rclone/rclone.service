@@ -6,8 +6,8 @@ Before=docker.service
 
 [Service]
 Type=simple
-User=tcsoc
-Group=tcsoc
+User=<user>
+Group=<user>
 ExecStart=/usr/bin/rclone serve nfs internxt:media \
   --config=/etc/rclone/rclone.conf \
   --addr 127.0.0.1:2049 \
