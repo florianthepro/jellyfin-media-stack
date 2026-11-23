@@ -19,7 +19,9 @@ Neben den bereits genannten gibt es noch einige Plugins, die deinen Server in be
 -->
 ### 📱 Client-Übersicht nach Use Case
 
-Die Wahl des richtigen Clients hängt stark vom Gerät und den persönlichen Vorlieben ab. Die folgende Tabelle fasst die wichtigsten Optionen zusammen, sortiert nach dem primären Anwendungsfall.
+Client Wahl hängt vom Gerät und den persönlichen Vorlieben ab.
+<!-- Die folgende Tabelle fasst die wichtigsten Optionen zusammen, sortiert nach dem primären Anwendungsfall.
+-->
 
 | Use Case / Gerät | Empfohlene(r) Client(s) | Plattformen | Warum dieser Client? | Wichtige Einschränkung |
 | :--- | :--- | :--- | :--- | :--- |
