@@ -55,7 +55,7 @@ Dashboard → Bibliothek → [Bibliothek] → Echtzeitüberwachung AUS
 ### M3U-Tuner (Workaround)
 Da `/media` read-only ist, kann Jellyfin M3U-Dateien dort nicht verarbeiten. Der Workaround:
 ```bash
-sudo cp /pfad/zur/channels.m3u /opt/jfms/config/jellyfin/livetv/channels.m3u
+sudo cp /pfad/zur/channels.m3u /opt/jfms/config/jellyfin/livetv/channels/channels.m3u
 ```
 In Jellyfin als Pfad für den Tuner angeben: `/livetv/channels/channels.m3u`
 
