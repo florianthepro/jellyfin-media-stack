@@ -1,3 +1,5 @@
+<span style="color: green"> Some green text </span>
+
 # JFMS – Jellyfin Media Stack
 
 System: frisches Debian-System wird vorausgesetzt
@@ -50,6 +52,7 @@ In Jellyfin als Pfad für den Tuner angeben: `/livetv/channels/channels.m3u`
 ## Manuelle Befehle (Wartung & Fehlerbehebung)
 
 ### Kompletter Force-Reset/Delete
+
 <font color="red"> Löscht alle Container, Netzwerke und Volumes des JFMS-Stacks – auch hängen gebliebene oder unhealthy Container. Andere Host-Projekte bleiben unberührt. </font>
 
 ```bash
