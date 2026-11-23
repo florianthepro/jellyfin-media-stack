@@ -1,3 +1,18 @@
+> [!NOTE]
+> Background information people should see, even when skimming.
+
+> [!TIP]
+> An optional shortcut or a better way to do something.
+
+> [!IMPORTANT]
+> Something people must know or do to succeed.
+
+> [!WARNING]
+> Something that needs attention right now to avoid problems.
+
+> [!CAUTION]
+> A risky action, like one that deletes data or can't be undone.
+
 # JFMS – Jellyfin Media Stack
 
 System: frisches Debian-System wird vorausgesetzt
