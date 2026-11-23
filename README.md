@@ -1,11 +1,11 @@
 > [!NOTE]
-> Background information people should see, even when skimming.
+> Dieses README beschreibt die Einrichtung des Docker-Stacks, die Jellyfin-Einstellungen und die Wartung. 
 
 > [!TIP]
-> An optional shortcut or a better way to do something.
+> **Für die Einbindung der Medien via rclone (Internxt) siehe [SETUP-RCLONE.md](./SETUP-RCLONE.md).** (Oder ein anderes Netzwerk-Laufwerk unter `/mnt/internxt` einbinden).
 
 > [!IMPORTANT]
-> Something people must know or do to succeed.
+> **Für die Einbindung der Medien via rclone (Internxt) siehe [SETUP-RCLONE.md](./SETUP-RCLONE.md).** (Oder ein anderes Netzwerk-Laufwerk unter `/mnt/internxt` einbinden).
 
 > [!WARNING]
 > Something that needs attention right now to avoid problems.
@@ -17,8 +17,8 @@ System: frisches Debian-System wird vorausgesetzt
 Stack: Jellyfin · Tdarr · IPTV-EPG · Portainer · Cloudflared · Backup  
 Storage: Externer Mount unter `/mnt/internxt`
 
-> **Wichtig:** Dieses README beschreibt die Einrichtung des Docker-Stacks, die Jellyfin-Einstellungen und die Wartung.  
-> **Für die Einbindung der Medien via rclone (Internxt) siehe [SETUP-RCLONE.md](./SETUP-RCLONE.md).** (Oder ein anderes Netzwerk-Laufwerk unter `/mnt/internxt` einbinden).
+> **Wichtig:**  
+> 
 
 ---
 
@@ -63,7 +63,9 @@ In Jellyfin als Pfad für den Tuner angeben: `/livetv/channels/channels.m3u`
 ## Manuelle Befehle (Wartung & Fehlerbehebung)
 
 ### Kompletter Force-Reset/Delete
-<img alt="Löscht alle Container, Netzwerke und Volumes des JFMS-Stacks – auch hängen gebliebene oder unhealthy Container." src="https://img.shields.io/badge/Dein%20roter%20Text-red">
+
+> [!CAUTION]
+> Löscht alle Container, Netzwerke und Volumes des JFMS-Stacks – auch hängen gebliebene oder unhealthy Container.
 
 ```bash
 cd /opt/jfms
