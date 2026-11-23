@@ -29,34 +29,29 @@ cd /opt/jfms && sudo docker compose up -d
 
 ---
 
-## 3. Wichtige Einstellungen (Jellyfin & Tdarr)
+## Wichtige Einstellungen in Jellyfin
 
-### 3.1 Jellyfin: Echtzeitüberwachung deaktivieren
+### Echtzeitüberwachung deaktivieren
 Wenn ein Netzwerk-Mount (NFS/SMB) genutzt wird, **muss** die Echtzeitüberwachung deaktiviert werden, da sonst Endlos-Scans und massive Log-Fehler auftreten:
 ```
 Dashboard → Bibliothek → [Bibliothek] → Echtzeitüberwachung AUS
 ```
 *(Gilt für jede Bibliothek einzeln).*
 
-### 3.2 Jellyfin: M3U-Tuner (Workaround)
+### M3U-Tuner (Workaround)
 Da `/media` read-only ist, kann Jellyfin M3U-Dateien dort nicht verarbeiten. Der Workaround:
 ```bash
 sudo cp /pfad/zur/channels.m3u /opt/jfms/config/jellyfin/livetv/channels.m3u
 ```
 In Jellyfin als Pfad für den Tuner angeben: `/livetv/channels/channels.m3u`
 
-### 3.3 Tdarr: Schreibrechte testen
-```bash
-sudo docker compose -f /opt/jfms/compose.yaml exec tdarr \
-  sh -c 'touch /media/tdarr/.w && rm /media/tdarr/.w && echo ok'
-```
-
 ---
 
-## 4. Manuelle Befehle (Wartung & Fehlerbehebung)
+## Manuelle Befehle (Wartung & Fehlerbehebung)
 
-### 4.1 Kompletter Force-Reset (Nur dieses Projekt!)
-Löscht alle Container, Netzwerke und Volumes des JFMS-Stacks – auch hängen gebliebene oder unhealthy Container. Andere Host-Projekte bleiben unberührt.
+### Kompletter Force-Reset/Delete
+<font color="red"> Löscht alle Container, Netzwerke und Volumes des JFMS-Stacks – auch hängen gebliebene oder unhealthy Container. Andere Host-Projekte bleiben unberührt. </font>
+
 ```bash
 cd /opt/jfms
 
