@@ -1,11 +1,6 @@
-> [!NOTE]
-> Dieses README beschreibt die Einrichtung des Docker-Stacks, die Jellyfin-Einstellungen und die Wartung. 
-
-> [!TIP]
-> System: frisches Debian-System wird vorausgesetzt
-
 > [!IMPORTANT]
 > **Für die Einbindung der Medien via rclone (Internxt) siehe [SETUP-RCLONE.md](./SETUP-RCLONE.md).**
+> 
 > (Oder ein anderes Netzwerk-Laufwerk unter `/mnt/internxt` einbinden).
 
 > [!WARNING]
@@ -13,6 +8,12 @@
 
 
 # JFMS – Jellyfin Media Stack
+
+> [!NOTE]
+> Dieses README beschreibt die Einrichtung des Docker-Stacks, die Jellyfin-Einstellungen und die Wartung. 
+
+> [!TIP]
+> System: frisches Debian-System wird vorausgesetzt
 
 Stack: Jellyfin · Tdarr · IPTV-EPG · Portainer · Cloudflared · Backup  
 Storage: Externer Mount unter `/mnt/internxt`
