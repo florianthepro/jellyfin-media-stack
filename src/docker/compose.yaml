@@ -61,3 +61,13 @@ services:
       - "${RCLONE_CONF_DIR}:/backup-src/rclone:ro"
       - "${BACKUP_DIR}:/backup-dest"
     restart: unless-stopped
+  seerr:
+    image: ghcr.io/seerr-team/seerr:latest
+    container_name: seerr
+    environment:
+      TZ: "${TZ}"
+    ports:
+      - "5055:5055"
+    volumes:
+      - "./config/seerr:/app/config"
+    restart: unless-stopped
