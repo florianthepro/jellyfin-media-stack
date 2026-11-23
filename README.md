@@ -1,59 +1,30 @@
 # JFMS – Jellyfin Media Stack
 
-> **Wichtig:** Dieses README beschreibt die Einrichtung des Docker-Stacks, die Jellyfin-Einstellungen und die Wartung.  
-> **Für die Einbindung der Medien via rclone (Internxt) siehe [SETUP-RCLONE.md](./SETUP-RCLONE.md).** (Oder ein anderes Netzwerk-Laufwerk unter `/mnt/internxt` einbinden).
-
+System: frisches Debian-System wird vorausgesetzt
 Stack: Jellyfin · Tdarr · IPTV-EPG · Portainer · Cloudflared · Backup  
 Storage: Externer Mount unter `/mnt/internxt`
 
----
-
-## 1. Architektur & Design-Entscheidungen
-
-- **Read-Only Schutz:** Das gesamte `/media`-Verzeichnis ist im Container read-only (`:ro`). Nur der Aufnahmeordner (`/media/jellyfin/livetv/`) und der Tdarr-Ordner (`/media/tdarr/`) sind read-write (`:rw`). Dies erfordert zwei separate Volume-Mounts in der `compose.yaml`.
-- **Config-Speicherort:** Die rclone-Config (falls genutzt) liegt unter `/etc/rclone/rclone.conf`, damit der Dienst sie lesen und für Token-Refresh schreiben kann.
+> **Wichtig:** Dieses README beschreibt die Einrichtung des Docker-Stacks, die Jellyfin-Einstellungen und die Wartung.  
+> **Für die Einbindung der Medien via rclone (Internxt) siehe [SETUP-RCLONE.md](./SETUP-RCLONE.md).** (Oder ein anderes Netzwerk-Laufwerk unter `/mnt/internxt` einbinden).
 
 ---
 
-## 2. Setup (Docker Stack)
+## Setup Docker Stack
 
-### 2.1 Voraussetzungen & Docker installieren
-Ein frisches Debian-System wird vorausgesetzt. Docker und Compose müssen installiert sein:
 ```bash
-sudo apt update
-sudo apt install -y curl docker.io docker-compose-plugin micro
-sudo systemctl enable --now docker
+echo "Voraussetzungen & Docker installieren:" && sudo apt update && sudo apt install -y curl docker.io docker-compose-plugin micro && sudo systemctl enable --now docker echo "Projektverzeichnis vorbereiten:" && sudo mkdir -p /opt/jfms && sudo chown $USER:$USER /opt/jfms && cd /opt/jfms echo "Docker-Konfiguration beziehen:" && echo "===== Compose-Datei und Beispiel-.env herunterladen =====" && curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/src/docker/compose.yaml -o /opt/jfms/compose.yaml && curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/src/docker/beispiel.env -o /opt/jfms/beispiel.env && echo "===== .env aus dem Beispiel erstellen =====" && mv /opt/jfms/beispiel.env /opt/jfms/.env && sudo chmod 600 /opt/jfms/.env
 ```
-
-### 2.2 Projektverzeichnis vorbereiten
-```bash
-sudo mkdir -p /opt/jfms
-sudo chown $USER:$USER /opt/jfms
-cd /opt/jfms
-```
-
-### 2.3 Docker-Konfiguration beziehen
-```bash
-# Compose-Datei und Beispiel-.env herunterladen
-curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/src/docker/compose.yaml -o /opt/jfms/compose.yaml
-curl -fsSL https://raw.githubusercontent.com/florianthepro/jellyfin-media-stack/main/src/docker/beispiel.env -o /opt/jfms/beispiel.env
-
-# .env aus dem Beispiel erstellen
-cp /opt/jfms/beispiel.env /opt/jfms/.env
-sudo chmod 600 /opt/jfms/.env
-```
-
-### 2.4 .env anpassen
+.env anpassen
 ```bash
 sudo micro /opt/jfms/.env
 ```
-Trage hier deine `PUID`, `PGID`, `TZ`, API-Keys und den Pfad zur `IPTV_CHANNELS_XML` ein. 
+Trage hier deine API-Keys und den Pfad zur `IPTV_CHANNELS_XML` ein. (Wenn erfordlich `PUID`, `PGID`und `TZ` anpassen.)
 *Hinweis: Der Pfad für `MEDIA` steht standardmäßig auf `/mnt/internxt`. Wenn du ein anderes Laufwerk nutzt, passe ihn hier an.*
 
-### 2.5 Stack starten
+Stack starten:
+
 ```bash
-cd /opt/jfms
-sudo docker compose up -d
+cd /opt/jfms && sudo docker compose up -d
 ```
 
 ---
@@ -70,10 +41,9 @@ Dashboard → Bibliothek → [Bibliothek] → Echtzeitüberwachung AUS
 ### 3.2 Jellyfin: M3U-Tuner (Workaround)
 Da `/media` read-only ist, kann Jellyfin M3U-Dateien dort nicht verarbeiten. Der Workaround:
 ```bash
-sudo cp /pfad/zur/playlist.m3u /opt/jfms/config/jellyfin/playlist.m3u
-sudo chown 1000:1000 /opt/jfms/config/jellyfin/playlist.m3u
+sudo cp /pfad/zur/channels.m3u /opt/jfms/config/jellyfin/livetv/channels.m3u
 ```
-In Jellyfin als Pfad für den Tuner angeben: `/config/playlist.m3u`
+In Jellyfin als Pfad für den Tuner angeben: `/livetv/channels/channels.m3u`
 
 ### 3.3 Tdarr: Schreibrechte testen
 ```bash
@@ -159,3 +129,11 @@ sudo systemctl start rclone.service
 sudo umount -l /mnt/internxt
 sudo mount -t nfs -o port=2049,mountport=2049,tcp,nfsvers=3 127.0.0.1:/ /mnt/internxt
 ```
+
+---
+
+## END. Architektur & Design-Entscheidungen
+
+- `/media`-Verzeichnis ist read-only (`:ro`)
+- `/media/jellyfin/livetv/` und `/media/tdarr/` sind read-write (`:rw`)
+- rclone-Config (falls genutzt) liegt unter `/etc/rclone/rclone.conf`
