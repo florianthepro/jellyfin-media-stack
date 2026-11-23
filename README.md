@@ -78,12 +78,22 @@ sudo tar -xf "$BACKUP_FILE" -C /tmp/jfms-restore
 > [!CAUTION]
 > Löscht vorm einspielen alle Container, Netzwerke und Volumes des JFMS-Stacks – auch hängen gebliebene oder unhealthy Container.
 ```bash
-cd /opt/jfms && echo "1. Alle Container des Stacks brutal stoppen und löschen" && sudo docker compose down --remove-orphans || true && sudo docker rm -f $(sudo docker compose ps -aq) 2>/dev/null || true && echo "2. Stack komplett neu bauen und starten" && sudo docker compose up -d --force-recreate && cd /opt/jfms && \
+export BACKUP_FILE=/mnt/internxt/backup/jfms-config-YYYYMMDD-HHMMSS.tar && \
+cd /opt/jfms && \
+echo ">>> 1. Force-Reset..." && \
+sudo docker compose down --remove-orphans || true && \
+sudo docker rm -f $(sudo docker compose ps -aq) 2>/dev/null || true && \
+echo ">>> 2. Backup entpacken..." && \
+sudo rm -rf /tmp/jfms-restore && \
+sudo mkdir -p /tmp/jfms-restore && \
+sudo tar -xf "$BACKUP_FILE" -C /tmp/jfms-restore && \
+echo ">>> 3. Dateien wiederherstellen..." && \
 sudo cp -a /tmp/jfms-restore/config/* ./config/ && \
 sudo cp -a /tmp/jfms-restore/compose.yaml ./compose.yaml && \
 sudo cp -a /tmp/jfms-restore/.env ./.env && \
 sudo cp -a /tmp/jfms-restore/rclone/rclone.conf /etc/rclone/rclone.conf && \
 sudo chown -R 1000:1000 ./config/jellyfin && \
+echo ">>> 4. Stack starten..." && \
 sudo docker compose up -d --force-recreate
 ```
 
