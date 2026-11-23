@@ -1,4 +1,5 @@
-$${\color{red}Dein \space roter \space Text}$$
+<img alt="Dein roter Text" src="https://img.shields.io/badge/Dein%20roter%20Text-red">
+
 
 
 # JFMS – Jellyfin Media Stack
