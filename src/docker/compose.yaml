@@ -22,7 +22,8 @@ services:
       - "./config/jellyfin/config:/config"
       - "./data/jellyfin/cache:/cache"
       - "${MEDIA}:/media:ro"
-      - "${MEDIA}/jellyfin/livetv/recordings:/media/jellyfin/livetv/recordings:rw"
+      - "${MEDIA}/jellyfin/livetv/recordings:/livetv/recordings/:rw"
+      - "./config/jellyfin/livetv/channels:/livetv/channels"
     restart: unless-stopped
   tdarr:
     image: ghcr.io/haveagitgat/tdarr:latest
