@@ -3,21 +3,29 @@
 > 
 > (Oder ein anderes Netzwerk-Laufwerk unter `/mnt/internxt` einbinden).
 
-> [!WARNING]
-> Something that needs attention right now to avoid problems.
-
-
-# JFMS – Jellyfin Media Stack
-
-> [!NOTE]
-> Dieses README beschreibt die Einrichtung des Docker-Stacks, die Jellyfin-Einstellungen und die Wartung. 
-
 > [!TIP]
 > System: frisches Debian-System wird vorausgesetzt
+
+> [!NOTE]
+> Dieses README beschreibt die Einrichtung des Docker-Stacks, die Jellyfin-Einstellungen und die Wartung.
+
+# JFMS – Jellyfin Media Stack
 
 Stack: Jellyfin · Tdarr · IPTV-EPG · Portainer · Cloudflared · Backup  
 Storage: Externer Mount unter `/mnt/internxt`
 
+---
+
+<!--
+## Architektur & Design-Entscheidungen
+
+- `/media`-Verzeichnis ist read-only (`:ro`)
+- `/media/jellyfin/livetv/` und `/media/tdarr/` sind read-write (`:rw`)
+- rclone-Config (falls genutzt) liegt unter `/etc/rclone/rclone.conf`
+
+---
+
+-->
 ## Setup Docker Stack
 
 ```bash
@@ -58,23 +66,7 @@ In Jellyfin als Pfad für den Tuner angeben: `/livetv/channels/channels.m3u`
 
 ## Manuelle Befehle (Wartung & Fehlerbehebung)
 
-### Kompletter Force-Reset/Delete
-
-> [!CAUTION]
-> Löscht alle Container, Netzwerke und Volumes des JFMS-Stacks – auch hängen gebliebene oder unhealthy Container.
-
-```bash
-cd /opt/jfms
-
-# 1. Alle Container des Stacks brutal stoppen und löschen
-sudo docker compose down --remove-orphans || true
-sudo docker rm -f $(sudo docker compose ps -aq) 2>/dev/null || true
-
-# 2. Stack komplett neu bauen und starten
-sudo docker compose up -d --force-recreate
-```
-
-### 4.2 Backup wiederherstellen (Restore)
+### Backup wiederherstellen
 
 **Schritt 1:** Backup in ein temporäres Verzeichnis entpacken
 ```bash
@@ -86,8 +78,10 @@ sudo tar -xf "$BACKUP_FILE" -C /tmp/jfms-restore
 ```
 
 **Schritt 2:** Kettenbefehl zum Einspielen und Neustart
+> [!CAUTION]
+> Löscht vorm einspielen alle Container, Netzwerke und Volumes des JFMS-Stacks – auch hängen gebliebene oder unhealthy Container.
 ```bash
-cd /opt/jfms && \
+cd /opt/jfms && echo "1. Alle Container des Stacks brutal stoppen und löschen" && sudo docker compose down --remove-orphans || true && sudo docker rm -f $(sudo docker compose ps -aq) 2>/dev/null || true && echo "2. Stack komplett neu bauen und starten" && sudo docker compose up -d --force-recreate && cd /opt/jfms && \
 sudo cp -a /tmp/jfms-restore/config/* ./config/ && \
 sudo cp -a /tmp/jfms-restore/compose.yaml ./compose.yaml && \
 sudo cp -a /tmp/jfms-restore/.env ./.env && \
@@ -96,7 +90,7 @@ sudo chown -R 1000:1000 ./config/jellyfin && \
 sudo docker compose up -d --force-recreate
 ```
 
-### 4.3 Einzelne Dateien aus einem Backup wiederherstellen
+### Einzelne Dateien aus einem Backup wiederherstellen
 ```bash
 # Nur eine bestimmte Datei aus dem Tar extrahieren
 sudo tar -xf /mnt/internxt/backup/jfms-config-YYYYMMDD-HHMMSS.tar \
@@ -107,39 +101,12 @@ sudo cp /tmp/jfms-restore/config/jellyfin/config/system.xml \
   /opt/jfms/config/jellyfin/config/system.xml
 ```
 
-### 4.4 Backup manuell anstoßen & prüfen
+### Manuelles Backup
 ```bash
-# Backup manuell starten
-sudo docker compose -f /opt/jfms/compose.yaml exec backup /usr/local/bin/backup.sh
-
-# Log prüfen
-sudo docker logs jfms-backup --tail 50
-
-# Backups auflisten
-ls -lt /mnt/internxt/backup/*.tar | head
-
-# Prüfen ob rclone.conf im Backup ist
-sudo tar -tf $(ls -t /mnt/internxt/backup/*.tar | head -1) | grep '^rclone/'
+echo "Backup manuell starten" && sudo docker compose -f /opt/jfms/compose.yaml exec backup /usr/local/bin/backup.sh && echo "Log prüfen" && sudo docker logs jfms-backup --tail 50 && echo "Backups auflisten" && ls -lt /mnt/internxt/backup/*.tar | head && echo "Prüfen ob rclone.conf im Backup ist" && sudo tar -tf $(ls -t /mnt/internxt/backup/*.tar | head -1) | grep '^rclone/'
 ```
 
-### 4.5 rclone / NFS Fehlerbehebung
+### rclone / NFS Fehlerbehebung
 ```bash
-# Status prüfen
-sudo systemctl status rclone.service
-sudo journalctl -u rclone.service -n 50 --no-pager
-
-# VFS-Cache leeren (bei "Max space used"-Fehlern)
-sudo systemctl stop rclone.service
-sudo rm -rf /var/cache/rclone-internxt/*
-sudo systemctl start rclone.service
-sudo umount -l /mnt/internxt
-sudo mount -t nfs -o port=2049,mountport=2049,tcp,nfsvers=3 127.0.0.1:/ /mnt/internxt
+echo "Status prüfen" && sudo systemctl status rclone.service && sudo journalctl -u rclone.service -n 50 --no-pager && echo "VFS-Cache leeren (bei "Max space used"-Fehlern)" && sudo systemctl stop rclone.service && sudo rm -rf /var/cache/rclone-internxt/* && sudo systemctl start rclone.service && sudo umount -l /mnt/internxt && sudo mount -t nfs -o port=2049,mountport=2049,tcp,nfsvers=3 127.0.0.1:/ /mnt/internxt
 ```
-
----
-
-## END. Architektur & Design-Entscheidungen
-
-- `/media`-Verzeichnis ist read-only (`:ro`)
-- `/media/jellyfin/livetv/` und `/media/tdarr/` sind read-write (`:rw`)
-- rclone-Config (falls genutzt) liegt unter `/etc/rclone/rclone.conf`
