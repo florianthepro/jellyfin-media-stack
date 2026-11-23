@@ -1,5 +1,6 @@
 > [!NOTE]
 > Dieses README beschreibt die Einrichtung des Docker-Stacks, die Jellyfin-Einstellungen und die Wartung.
+
 > [!IMPORTANT]
 > **Für die Einbindung der Medien via rclone (Internxt) siehe [SETUP-RCLONE.md](./SETUP-RCLONE.md).**
 > 
