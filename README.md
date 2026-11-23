@@ -1,4 +1,4 @@
-<div style="color: red;">Dein roter Text</div>
+$${\color{red}Dein \space roter \space Text}$$
 
 
 # JFMS – Jellyfin Media Stack
