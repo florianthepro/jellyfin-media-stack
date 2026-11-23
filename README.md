@@ -1,4 +1,5 @@
-<span style="color: green"> Some green text </span>
+<div style="color: red;">Dein roter Text</div>
+
 
 # JFMS – Jellyfin Media Stack
 
